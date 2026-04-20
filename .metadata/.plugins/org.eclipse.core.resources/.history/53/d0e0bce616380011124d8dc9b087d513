@@ -1,0 +1,112 @@
+package ui.common;
+
+import models.User;
+import javax.swing.*;
+import java.awt.*;
+
+public class HeaderPanel extends JPanel {
+    
+    private User currentUser;
+    private Color NAVY_BLUE = new Color(0, 0, 128);
+    private Color YELLOW = new Color(252, 202, 12);
+    
+    public HeaderPanel(User user) {
+        this.currentUser = user;
+        setBackground(NAVY_BLUE);
+        setBorder(BorderFactory.createMatteBorder(0, 0, 2, 0, Color.BLACK));
+        setLayout(new BorderLayout());
+        setPreferredSize(new Dimension(0, 75));
+        
+        initializeComponents();
+    }
+    
+    private void initializeComponents() {
+        JPanel leftPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 20, 10));
+        leftPanel.setOpaque(false);
+        
+        // Car icon panel
+        CarIconPanel carIcon = new CarIconPanel();
+        carIcon.setPreferredSize(new Dimension(50, 50));
+        leftPanel.add(carIcon);
+        
+        JPanel textPanel = new JPanel();
+        textPanel.setLayout(new BoxLayout(textPanel, BoxLayout.Y_AXIS));
+        textPanel.setOpaque(false);
+        
+        JLabel titleLabel = new JLabel("APU-ASC SUPPORT SYSTEM");
+        titleLabel.setFont(new Font("Tahoma", Font.BOLD, 22));
+        titleLabel.setForeground(Color.WHITE);
+        textPanel.add(titleLabel);
+        
+        JPanel userPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
+        userPanel.setOpaque(false);
+        
+        JLabel welcomeLabel = new JLabel("Welcome,");
+        welcomeLabel.setFont(new Font("Tahoma", Font.PLAIN, 13));
+        welcomeLabel.setForeground(Color.WHITE);
+        userPanel.add(welcomeLabel);
+        
+        JLabel nameLabel = new JLabel(currentUser.getFullName());
+        nameLabel.setFont(new Font("Tahoma", Font.BOLD, 13));
+        nameLabel.setForeground(Color.WHITE);
+        userPanel.add(nameLabel);
+        
+        JLabel roleLabel = new JLabel("(" + currentUser.getRoleDisplayName() + ")");
+        roleLabel.setFont(new Font("Tahoma", Font.PLAIN, 11));
+        roleLabel.setForeground(YELLOW);
+        userPanel.add(roleLabel);
+        
+        textPanel.add(userPanel);
+        leftPanel.add(textPanel);
+        
+        add(leftPanel, BorderLayout.WEST);
+    }
+    
+    // Custom car icon panel
+    private class CarIconPanel extends JPanel {
+        public CarIconPanel() {
+            setOpaque(false);
+        }
+        
+        @Override
+        protected void paintComponent(Graphics g) {
+            super.paintComponent(g);
+            Graphics2D g2d = (Graphics2D) g;
+            g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            
+            int width = getWidth();
+            int height = getHeight();
+            
+            // Yellow background
+            g2d.setColor(YELLOW);
+            g2d.fillRoundRect(5, 5, width - 10, height - 10, 12, 12);
+            
+            // Border
+            g2d.setColor(Color.BLACK);
+            g2d.setStroke(new BasicStroke(1.5f));
+            g2d.drawRoundRect(5, 5, width - 10, height - 10, 12, 12);
+            
+            // Car body
+            g2d.setColor(NAVY_BLUE);
+            g2d.fillRoundRect(12, height/2 - 2, 25, 12, 6, 6);
+            
+            // Car top
+            g2d.fillRoundRect(18, height/2 - 8, 12, 8, 4, 4);
+            
+            // Windows
+            g2d.setColor(new Color(200, 220, 255));
+            g2d.fillRoundRect(20, height/2 - 6, 4, 5, 2, 2);
+            g2d.fillRoundRect(26, height/2 - 6, 3, 5, 2, 2);
+            
+            // Wheels
+            g2d.setColor(Color.BLACK);
+            g2d.fillOval(15, height/2 + 6, 7, 7);
+            g2d.fillOval(28, height/2 + 6, 7, 7);
+            
+            // Wheel hubs
+            g2d.setColor(Color.LIGHT_GRAY);
+            g2d.fillOval(17, height/2 + 8, 3, 3);
+            g2d.fillOval(30, height/2 + 8, 3, 3);
+        }
+    }
+}

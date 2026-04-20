@@ -1,0 +1,166 @@
+package ui.customer;
+
+import dao.AppointmentDAO;
+import dao.FeedbackDAO;
+import models.Appointment;
+import models.Feedback;
+import models.User;
+import ui.common.BasePanel;
+
+import javax.swing.*;
+import java.awt.*;
+import java.util.List;
+
+public class MyFeedbackPanel extends BasePanel {
+    
+    private User currentCustomer;
+    private AppointmentDAO appointmentDAO;
+    private FeedbackDAO feedbackDAO;
+    private JPanel feedbackContainer;
+    
+    public MyFeedbackPanel(User customer) {
+        this.currentCustomer = customer;
+        this.appointmentDAO = new AppointmentDAO();
+        this.feedbackDAO = new FeedbackDAO();
+        
+        setLayout(new BorderLayout());
+        setBackground(PANEL_BG);
+        setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
+        
+        initializeComponents();
+        setupLayout();
+        addEventHandlers();
+        loadFeedbacks();
+    }
+    
+    @Override
+    protected void initializeComponents() {
+        feedbackContainer = new JPanel();
+        feedbackContainer.setLayout(new BoxLayout(feedbackContainer, BoxLayout.Y_AXIS));
+        feedbackContainer.setBackground(PANEL_BG);
+    }
+    
+    @Override
+    protected void setupLayout() {
+        JPanel mainPanel = new JPanel();
+        mainPanel.setLayout(new BoxLayout(mainPanel, BoxLayout.Y_AXIS));
+        mainPanel.setBackground(PANEL_BG);
+        
+        // Header
+        JLabel titleLabel = new JLabel("Technician Feedbacks for My Services");
+        titleLabel.setFont(new Font("Tahoma", Font.BOLD, 24));
+        titleLabel.setForeground(NAVY_BLUE);
+        titleLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        mainPanel.add(titleLabel);
+        mainPanel.add(Box.createVerticalStrut(20));
+        
+        // Feedback container with scroll
+        JScrollPane scrollPane = new JScrollPane(feedbackContainer);
+        scrollPane.setBorder(BorderFactory.createEmptyBorder());
+        scrollPane.setBackground(PANEL_BG);
+        scrollPane.getViewport().setBackground(PANEL_BG);
+        scrollPane.setAlignmentX(Component.LEFT_ALIGNMENT);
+        
+        mainPanel.add(scrollPane);
+        
+        add(mainPanel);
+    }
+    
+    private void loadFeedbacks() {
+        feedbackContainer.removeAll();
+        
+        List<Appointment> myAppointments = appointmentDAO.findByCustomerId(currentCustomer.getId());
+        List<Feedback> allFeedbacks = feedbackDAO.readAll();
+        
+        boolean hasFeedbacks = false;
+        
+        for (Appointment appt : myAppointments) {
+            for (Feedback feedback : allFeedbacks) {
+                if (feedback.getAppointmentId().equals(appt.getId())) {
+                    feedbackContainer.add(createFeedbackCard(appt, feedback));
+                    feedbackContainer.add(Box.createVerticalStrut(15));
+                    hasFeedbacks = true;
+                }
+            }
+        }
+        
+        if (!hasFeedbacks) {
+            JLabel noFeedbackLabel = new JLabel("No feedbacks available yet.");
+            noFeedbackLabel.setFont(new Font("Tahoma", Font.ITALIC, 14));
+            noFeedbackLabel.setForeground(Color.GRAY);
+            noFeedbackLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
+            feedbackContainer.add(Box.createVerticalStrut(50));
+            feedbackContainer.add(noFeedbackLabel);
+        }
+        
+        feedbackContainer.revalidate();
+        feedbackContainer.repaint();
+    }
+    
+    private JPanel createFeedbackCard(Appointment appt, Feedback feedback) {
+        JPanel card = new JPanel();
+        card.setLayout(new BoxLayout(card, BoxLayout.Y_AXIS));
+        card.setBackground(Color.WHITE);
+        card.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createLineBorder(BORDER_LIGHT, 2),
+            BorderFactory.createLineBorder(BORDER_DARK, 2)
+        ));
+        card.setMaximumSize(new Dimension(600, 150));
+        card.setAlignmentX(Component.LEFT_ALIGNMENT);
+        
+        JPanel headerPanel = new JPanel(new BorderLayout());
+        headerPanel.setBackground(Color.WHITE);
+        headerPanel.setBorder(BorderFactory.createEmptyBorder(15, 15, 10, 15));
+        
+        JLabel apptLabel = new JLabel("Appointment #" + appt.getId());
+        apptLabel.setFont(new Font("Tahoma", Font.BOLD, 14));
+        apptLabel.setForeground(NAVY_BLUE);
+        headerPanel.add(apptLabel, BorderLayout.WEST);
+        
+        JPanel ratingPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 5, 0));
+        ratingPanel.setBackground(Color.WHITE);
+        
+        JLabel ratingLabel = new JLabel("Rating: ");
+        ratingLabel.setFont(new Font("Tahoma", Font.PLAIN, 11));
+        ratingPanel.add(ratingLabel);
+        
+        for (int i = 1; i <= 5; i++) {
+            JLabel starLabel = new JLabel(i <= 3 ? "★" : "☆");
+            starLabel.setFont(new Font("Segoe UI", Font.BOLD, 16));
+            starLabel.setForeground(i <= 3 ? new Color(252, 202, 12) : Color.LIGHT_GRAY);
+            ratingPanel.add(starLabel);
+        }
+        
+        headerPanel.add(ratingPanel, BorderLayout.EAST);
+        
+        card.add(headerPanel);
+        
+        JTextArea contentArea = new JTextArea(feedback.getContent());
+        contentArea.setFont(new Font("Tahoma", Font.PLAIN, 12));
+        contentArea.setEditable(false);
+        contentArea.setLineWrap(true);
+        contentArea.setWrapStyleWord(true);
+        contentArea.setBackground(Color.WHITE);
+        contentArea.setBorder(BorderFactory.createEmptyBorder(0, 15, 15, 15));
+        
+        card.add(contentArea);
+        
+        JPanel footerPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        footerPanel.setBackground(Color.WHITE);
+        footerPanel.setBorder(BorderFactory.createEmptyBorder(0, 15, 15, 15));
+        
+        JLabel dateLabel = new JLabel(appt.getDate() + " • " + appt.getServiceType() + " Service");
+        dateLabel.setFont(new Font("Tahoma", Font.PLAIN, 10));
+        dateLabel.setForeground(Color.GRAY);
+        footerPanel.add(dateLabel);
+        
+        card.add(footerPanel);
+        
+        return card;
+    }
+    
+    @Override
+    protected void addEventHandlers() {
+        // Event handlers if needed
+    }
+}

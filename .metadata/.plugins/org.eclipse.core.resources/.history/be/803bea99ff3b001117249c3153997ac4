@@ -1,0 +1,292 @@
+package ui.dashboard;
+
+import dao.UserDAO;
+import models.User;
+import ui.common.BasePanel;
+
+import javax.swing.*;
+import java.awt.*;
+
+public class ProfilePanel extends BasePanel {
+
+    private User currentUser;
+    private UserDAO userDAO;
+
+    private JTextField fullNameField;
+    private JTextField emailField;
+    private JTextField phoneField;
+    private JTextField usernameField;
+    private JPasswordField passwordField;
+
+    private JLabel nameLabel;
+
+    public ProfilePanel(User user) {
+        this.currentUser = user;
+        this.userDAO = new UserDAO();
+
+        setBackground(PANEL_BG);
+
+        initializeComponents();
+        setupLayout();
+        addEventHandlers();
+    }
+
+    @Override
+    protected void initializeComponents() {
+
+        fullNameField = new JTextField(currentUser != null ? currentUser.getFullName() : "", 30);
+        emailField = new JTextField(currentUser != null ? currentUser.getEmail() : "", 30);
+        phoneField = new JTextField(currentUser != null ? currentUser.getPhone() : "", 30);
+
+        usernameField = new JTextField(currentUser != null ? currentUser.getUsername() : "", 30);
+        usernameField.setEditable(false);
+        usernameField.setBackground(new Color(245, 245, 245));
+
+        passwordField = new JPasswordField(currentUser != null ? currentUser.getPassword() : "", 30);
+
+        style(fullNameField);
+        style(emailField);
+        style(phoneField);
+        style(usernameField);
+        style(passwordField);
+    }
+
+    private void style(JComponent c) {
+        c.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        c.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(new Color(200, 200, 200)),
+                BorderFactory.createEmptyBorder(10, 12, 10, 12)
+        ));
+        c.setPreferredSize(new Dimension(300, 40));
+    }
+
+    @Override
+    protected void setupLayout() {
+
+        setLayout(new GridBagLayout());
+
+        GridBagConstraints root = new GridBagConstraints();
+        root.gridx = 0;
+        root.gridy = 0;
+        root.weightx = 1;
+        root.weighty = 1;
+        root.anchor = GridBagConstraints.CENTER;
+
+        // ================= CARD =================
+        JPanel card = new JPanel();
+        card.setLayout(new BoxLayout(card, BoxLayout.Y_AXIS));
+        card.setBackground(Color.WHITE);
+        card.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createLineBorder(BORDER_LIGHT, 2),
+            BorderFactory.createLineBorder(BORDER_DARK, 2)
+        ));
+        card.setPreferredSize(new Dimension(550, 540));
+        card.setMaximumSize(new Dimension(550, 540));
+
+        // ================= HEADER =================
+        JPanel header = new JPanel() {
+            @Override
+            protected void paintComponent(Graphics g) {
+                super.paintComponent(g);
+                Graphics2D g2 = (Graphics2D) g;
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                g2.setColor(NAVY_BLUE);
+                g2.fillRect(0, 0, getWidth(), getHeight());
+            }
+        };
+
+        header.setLayout(new BorderLayout());
+        header.setPreferredSize(new Dimension(550, 85));
+        header.setMaximumSize(new Dimension(Integer.MAX_VALUE, 85));
+        header.setBorder(BorderFactory.createEmptyBorder(10, 28, 10, 28));
+
+        // ================= LEFT TEXT BLOCK =================
+        JPanel leftBlock = new JPanel();
+        leftBlock.setLayout(new BoxLayout(leftBlock, BoxLayout.Y_AXIS));
+        leftBlock.setOpaque(false);
+        leftBlock.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        JLabel title = new JLabel("My Profile");
+        title.setFont(new Font("Segoe UI", Font.BOLD, 21));
+        title.setForeground(Color.WHITE);
+        title.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        JLabel subtitle = new JLabel("Manage your personal information");
+        subtitle.setFont(new Font("Segoe UI", Font.PLAIN, 11));
+        subtitle.setForeground(new Color(220, 220, 220));
+        subtitle.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        leftBlock.add(title);
+        leftBlock.add(Box.createVerticalStrut(2));
+        leftBlock.add(subtitle);
+
+        header.add(leftBlock, BorderLayout.WEST);
+        card.add(header);
+
+        // ================= YELLOW BAR =================
+        JPanel bar = new JPanel();
+        bar.setBackground(YELLOW);
+        bar.setPreferredSize(new Dimension(550, 3));
+        bar.setMaximumSize(new Dimension(Integer.MAX_VALUE, 3));
+        card.add(bar);
+
+        // ================= INFO SECTION =================
+        JPanel info = new JPanel();
+        info.setLayout(new BoxLayout(info, BoxLayout.Y_AXIS));
+        info.setBackground(Color.WHITE);
+        info.setBorder(BorderFactory.createEmptyBorder(12, 25, 5, 25));
+        info.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        nameLabel = new JLabel(currentUser != null ? currentUser.getFullName() : "User");
+        nameLabel.setFont(new Font("Segoe UI", Font.BOLD, 20));
+        nameLabel.setForeground(NAVY_BLUE);
+        nameLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        info.add(nameLabel);
+        info.add(Box.createVerticalStrut(6));
+
+        // ================= META =================
+        JPanel meta = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 0));
+        meta.setBackground(Color.WHITE);
+        meta.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        JLabel role = new JLabel(currentUser != null ? currentUser.getRoleDisplayName() : "");
+        role.setFont(new Font("Segoe UI", Font.BOLD, 11));
+        role.setForeground(NAVY_BLUE);
+        role.setOpaque(true);
+        role.setBackground(new Color(225, 238, 255));
+        role.setBorder(BorderFactory.createEmptyBorder(4, 12, 4, 12));
+
+        JLabel id = new JLabel("ID: " + (currentUser != null ? currentUser.getId() : ""));
+        id.setFont(new Font("Segoe UI", Font.PLAIN, 11));
+        id.setForeground(new Color(110, 110, 110));
+
+        meta.add(role);
+        meta.add(id);
+
+        info.add(meta);
+        card.add(info);
+        card.add(Box.createVerticalStrut(4));
+
+        // ================= FORM =================
+        JPanel form = new JPanel(new GridBagLayout());
+        form.setBackground(Color.WHITE);
+        form.setBorder(BorderFactory.createEmptyBorder(5, 40, 5, 40));
+
+        GridBagConstraints f = new GridBagConstraints();
+        f.insets = new Insets(6, 8, 6, 8);
+        f.fill = GridBagConstraints.HORIZONTAL;
+
+        addFormField(form, f, "Full Name", fullNameField, 0);
+        addFormField(form, f, "Email", emailField, 1);
+        addFormField(form, f, "Phone", phoneField, 2);
+        addFormField(form, f, "Username", usernameField, 3);
+        addFormField(form, f, "Password", passwordField, 4);
+
+        card.add(form);
+
+        // ================= SAVE BUTTON =================
+        JPanel btnPanel = new JPanel(new FlowLayout(FlowLayout.CENTER));
+        btnPanel.setBackground(Color.WHITE);
+        btnPanel.setBorder(BorderFactory.createEmptyBorder(18, 30, 35, 30));
+
+        JButton save = new JButton("SAVE PROFILE CHANGES");
+        save.setFont(new Font("Segoe UI", Font.BOLD, 11));
+        save.setBackground(NAVY_BLUE);
+        save.setForeground(Color.WHITE);
+        save.setPreferredSize(new Dimension(240, 42));
+        save.setFocusPainted(false);
+        save.setBorderPainted(false);
+        save.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        save.addActionListener(e -> saveProfile());
+
+        save.addMouseListener(new java.awt.event.MouseAdapter() {
+            public void mouseEntered(java.awt.event.MouseEvent e) {
+                save.setBackground(new Color(0, 0, 100));
+            }
+            public void mouseExited(java.awt.event.MouseEvent e) {
+                save.setBackground(NAVY_BLUE);
+            }
+        });
+
+        btnPanel.add(save);
+        card.add(btnPanel);
+
+        root.anchor = GridBagConstraints.CENTER;
+        add(card, root);
+    }
+
+    private void addFormField(JPanel panel, GridBagConstraints g,
+                              String label, JComponent field, int row) {
+
+        g.gridx = 0;
+        g.gridy = row;
+        g.weightx = 0;
+        g.anchor = GridBagConstraints.WEST;
+
+        JLabel l = new JLabel(label);
+        l.setFont(new Font("Segoe UI", Font.BOLD, 11));
+        l.setForeground(new Color(80, 80, 80));
+        l.setPreferredSize(new Dimension(100, 30));
+
+        panel.add(l, g);
+
+        g.gridx = 1;
+        g.weightx = 1;
+        g.anchor = GridBagConstraints.CENTER;
+
+        panel.add(field, g);
+    }
+
+    private void saveProfile() {
+        if (currentUser == null) return;
+
+        String fullName = fullNameField.getText().trim();
+        String email = emailField.getText().trim();
+        String phone = phoneField.getText().trim();
+        String password = new String(passwordField.getPassword());
+
+        if (fullName.isEmpty()) {
+            JOptionPane.showMessageDialog(this, "Full Name cannot be empty.", "Validation Error", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        if (password.isEmpty()) {
+            JOptionPane.showMessageDialog(this, "Password cannot be empty.", "Validation Error", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        if (password.length() < 6) {
+            JOptionPane.showMessageDialog(this, "Password must be at least 6 characters.", "Validation Error", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        if (!email.isEmpty() && !email.matches("^[A-Za-z0-9+_.-]+@(.+)$")) {
+            JOptionPane.showMessageDialog(this, "Please enter a valid email address.", "Validation Error", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        if (!phone.isEmpty() && !phone.matches("\\d{10,12}")) {
+            JOptionPane.showMessageDialog(this, "Please enter a valid phone number (10-12 digits).", "Validation Error", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        currentUser.setFullName(fullName);
+        currentUser.setEmail(email);
+        currentUser.setPhone(phone);
+        currentUser.setPassword(password);
+
+        boolean success = userDAO.update(currentUser);
+
+        if (success) {
+            nameLabel.setText(fullName);
+            JOptionPane.showMessageDialog(this, "Profile updated successfully!", "Success", JOptionPane.INFORMATION_MESSAGE);
+        } else {
+            JOptionPane.showMessageDialog(this, "Failed to update profile.", "Error", JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    @Override
+    protected void addEventHandlers() {
+    }
+}

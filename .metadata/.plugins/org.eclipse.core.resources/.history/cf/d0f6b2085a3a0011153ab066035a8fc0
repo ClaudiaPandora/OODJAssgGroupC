@@ -1,0 +1,160 @@
+package ui.manager;
+
+import dao.UserDAO;
+import models.CounterStaff;
+import models.Manager;
+import models.Technician;
+import models.User;
+import ui.common.BaseFrame;
+
+import javax.swing.*;
+import java.awt.*;
+
+public class RegistrationFrame extends BaseFrame {
+    
+    private UserDAO userDAO;
+    private StaffFormPanel form;
+
+    public RegistrationFrame() {
+        this.userDAO = new UserDAO();
+        
+        setTitle("Register New Staff");
+        setSize(500, 560);
+        setLocationRelativeTo(null);
+        setResizable(false);
+        setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+        
+        initializeComponents();
+        setupLayout();
+        addEventHandlers();
+    }
+    
+    @Override
+    protected void initializeComponents() {
+        form = new StaffFormPanel(StaffFormPanel.Mode.CREATE, null);
+    }
+    
+    @Override
+    protected void setupLayout() {
+        JPanel mainPanel = new JPanel(new BorderLayout());
+        mainPanel.setBackground(NAVY_BLUE);
+
+        JPanel cardPanel = new JPanel(new BorderLayout());
+        cardPanel.setBackground(Color.WHITE);
+        cardPanel.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createLineBorder(BORDER_LIGHT, 2),
+            BorderFactory.createLineBorder(BORDER_DARK, 2)
+        ));
+
+        // ===== HEADER =====
+        JPanel headerContainer = new JPanel(new BorderLayout());
+
+        JPanel dialogHeader = new JPanel(new BorderLayout());
+        dialogHeader.setBackground(NAVY_BLUE);
+        dialogHeader.setBorder(BorderFactory.createEmptyBorder(18, 25, 18, 25));
+
+        JLabel headerTitle = new JLabel("Register New Staff");
+        headerTitle.setFont(new Font("Segoe UI", Font.BOLD, 16));
+        headerTitle.setForeground(Color.WHITE);
+        dialogHeader.add(headerTitle, BorderLayout.WEST);
+
+        headerContainer.add(dialogHeader, BorderLayout.CENTER);
+
+        JPanel yellowLine = new JPanel();
+        yellowLine.setBackground(YELLOW);
+        yellowLine.setPreferredSize(new Dimension(500, 4));
+        headerContainer.add(yellowLine, BorderLayout.SOUTH);
+
+        cardPanel.add(headerContainer, BorderLayout.NORTH);
+
+        // ===== FORM (REPLACED) =====
+        cardPanel.add(form, BorderLayout.CENTER);
+
+        // ===== BUTTON PANEL =====
+        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 15, 20));
+        buttonPanel.setBackground(Color.WHITE);
+        buttonPanel.setBorder(BorderFactory.createMatteBorder(1, 0, 0, 0, new Color(230, 230, 230)));
+
+        JButton registerButton = createDialogButton("REGISTER", new Color(59, 130, 246));
+        registerButton.addActionListener(e -> handleRegistration());
+
+        JButton cancelButton = createDialogButton("CANCEL", new Color(100, 100, 100));
+        cancelButton.addActionListener(e -> dispose());
+
+        buttonPanel.add(registerButton);
+        buttonPanel.add(cancelButton);
+
+        cardPanel.add(buttonPanel, BorderLayout.SOUTH);
+
+        mainPanel.add(cardPanel, BorderLayout.CENTER);
+        add(mainPanel);
+    }
+    
+    private JButton createDialogButton(String text, Color color) {
+        JButton button = new JButton(text);
+        button.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        button.setBackground(color);
+        button.setForeground(Color.WHITE);
+        button.setFocusPainted(false);
+        button.setBorderPainted(false);
+        button.setContentAreaFilled(true);
+        button.setOpaque(true);
+        button.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        button.setBorder(BorderFactory.createEmptyBorder(10, 25, 10, 25));
+
+        button.addMouseListener(new java.awt.event.MouseAdapter() {
+            public void mouseEntered(java.awt.event.MouseEvent e) {
+                button.setBackground(color.darker());
+            }
+            public void mouseExited(java.awt.event.MouseEvent e) {
+                button.setBackground(color);
+            }
+        });
+
+        return button;
+    }
+    
+    @Override
+    protected void addEventHandlers() {
+    }
+    
+    private void handleRegistration() {
+        String fullName = form.getFullName();
+        String email = form.getEmail();
+        String phone = form.getPhone();
+        String username = form.getUsername();
+        String password = form.getPassword();
+        String role = form.getRole();
+        
+        if (fullName.isEmpty() || username.isEmpty() || password.isEmpty()) {
+            JOptionPane.showMessageDialog(this, "Please fill all required fields.");
+            return;
+        }
+
+        if (password.length() < 6) {
+            JOptionPane.showMessageDialog(this, "Password must be at least 6 characters.");
+            return;
+        }
+
+        if (userDAO.findByUsername(username) != null) {
+            JOptionPane.showMessageDialog(this, "Username already exists.");
+            return;
+        }
+
+        User newUser = null;
+
+        if (role.equals("MANAGER"))
+            newUser = new Manager(null, username, password, fullName, email, phone);
+        else if (role.equals("COUNTER STAFF"))
+            newUser = new CounterStaff(null, username, password, fullName, email, phone);
+        else
+            newUser = new Technician(null, username, password, fullName, email, phone);
+
+        if (newUser != null && userDAO.save(newUser)) {
+            JOptionPane.showMessageDialog(this, "Staff registered successfully!");
+            dispose();
+        } else {
+            JOptionPane.showMessageDialog(this, "Registration failed.");
+        }
+    }
+}

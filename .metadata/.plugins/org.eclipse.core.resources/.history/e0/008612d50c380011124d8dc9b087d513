@@ -1,0 +1,5 @@
+package ui.auth;
+
+public class RegistrationFrame {
+
+}

@@ -1,0 +1,155 @@
+package ui.manager;
+
+import dao.AppointmentDAO;
+import dao.FeedbackDAO;
+import dao.CommentDAO;
+import dao.UserDAO;
+import models.*;
+import ui.common.BasePanel;
+
+import javax.swing.*;
+import java.awt.*;
+import java.util.List;
+
+public class FeedbackPanel extends BasePanel {
+    
+    private FeedbackDAO feedbackDAO;
+    private CommentDAO commentDAO;
+    private AppointmentDAO appointmentDAO;
+    private UserDAO userDAO;
+    private JTextArea feedbackArea;
+    private JTextArea commentArea;
+    
+    public FeedbackPanel() {
+        this.feedbackDAO = new FeedbackDAO();
+        this.commentDAO = new CommentDAO();
+        this.appointmentDAO = new AppointmentDAO();
+        this.userDAO = new UserDAO();
+        
+        setLayout(new BorderLayout());
+        setBackground(PANEL_BG);
+        setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
+        
+        initializeComponents();
+        setupLayout();
+        addEventHandlers();
+        loadData();
+    }
+    
+    @Override
+    protected void initializeComponents() {
+        feedbackArea = new JTextArea();
+        feedbackArea.setEditable(false);
+        feedbackArea.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        
+        commentArea = new JTextArea();
+        commentArea.setEditable(false);
+        commentArea.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+    }
+    
+    @Override
+    protected void setupLayout() {
+        JPanel mainPanel = new JPanel();
+        mainPanel.setLayout(new BoxLayout(mainPanel, BoxLayout.Y_AXIS));
+        mainPanel.setBackground(PANEL_BG);
+        
+        // Header Panel (konsisten dengan Service Pricing)
+        JPanel headerPanel = new JPanel(new BorderLayout());
+        headerPanel.setBackground(PANEL_BG);
+        headerPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 40));
+        headerPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        
+        JLabel titleLabel = new JLabel("Customer Feedback");
+        titleLabel.setFont(new Font("Segoe UI", Font.BOLD, 22));
+        titleLabel.setForeground(NAVY_BLUE);
+        headerPanel.add(titleLabel, BorderLayout.WEST);
+        
+        mainPanel.add(headerPanel);
+        mainPanel.add(Box.createVerticalStrut(20));
+        
+        // Technician Feedbacks Section
+     // Feedback Section
+        JLabel feedbackLabel = new JLabel("Technician Feedbacks");
+        feedbackLabel.setFont(new Font("Segoe UI", Font.BOLD, 22));
+        feedbackLabel.setForeground(NAVY_BLUE);
+        feedbackLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        mainPanel.add(feedbackLabel);
+        mainPanel.add(Box.createVerticalStrut(10));
+
+        JScrollPane feedbackScroll = new JScrollPane(feedbackArea);
+        feedbackScroll.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createLineBorder(BORDER_DARK, 2),
+            BorderFactory.createLineBorder(BORDER_LIGHT, 2)
+        ));
+        feedbackScroll.setPreferredSize(new Dimension(800, 200));
+        feedbackScroll.setMaximumSize(new Dimension(Integer.MAX_VALUE, 200));
+
+        mainPanel.add(feedbackScroll);
+        mainPanel.add(Box.createVerticalStrut(20));
+        
+     // Comments Section
+        JLabel commentLabel = new JLabel("Customer Comments");
+        commentLabel.setFont(new Font("Segoe UI", Font.BOLD, 22));
+        commentLabel.setForeground(NAVY_BLUE);
+        commentLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        mainPanel.add(commentLabel);
+        mainPanel.add(Box.createVerticalStrut(10));
+
+        JScrollPane commentScroll = new JScrollPane(commentArea);
+        commentScroll.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createLineBorder(BORDER_DARK, 2),
+            BorderFactory.createLineBorder(BORDER_LIGHT, 2)
+        ));
+        commentScroll.setPreferredSize(new Dimension(800, 200));
+        commentScroll.setMaximumSize(new Dimension(Integer.MAX_VALUE, 200));
+
+        mainPanel.add(commentScroll);
+        
+        JScrollPane commentScroll = new JScrollPane(commentArea);
+        commentScroll.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createLineBorder(BORDER_DARK, 2),
+            BorderFactory.createLineBorder(BORDER_LIGHT, 2)
+        ));
+        commentScroll.setPreferredSize(new Dimension(800, 200));
+        commentScroll.setMaximumSize(new Dimension(Integer.MAX_VALUE, 200));
+        mainPanel.add(commentScroll);
+        
+        JScrollPane scrollPane = new JScrollPane(mainPanel);
+        scrollPane.setBorder(null);
+        scrollPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED);
+        scrollPane.getVerticalScrollBar().setUnitIncrement(16);
+        add(scrollPane, BorderLayout.CENTER);
+    }
+    
+    private void loadData() {
+        // Load feedbacks
+        List<Feedback> feedbacks = feedbackDAO.readAll();
+        StringBuilder fbText = new StringBuilder();
+        for (Feedback f : feedbacks) {
+            Appointment appt = appointmentDAO.findById(f.getAppointmentId());
+            User tech = userDAO.findById(f.getTechnicianId());
+            fbText.append("Job #").append(f.getAppointmentId())
+                  .append(" | Technician: ").append(tech != null ? tech.getFullName() : "Unknown")
+                  .append("\n").append(f.getContent()).append("\n\n");
+        }
+        feedbackArea.setText(fbText.length() > 0 ? fbText.toString() : "No feedbacks available.");
+        
+        // Load comments
+        List<Comment> comments = commentDAO.readAll();
+        StringBuilder cmText = new StringBuilder();
+        for (Comment c : comments) {
+            Appointment appt = appointmentDAO.findById(c.getAppointmentId());
+            User customer = userDAO.findById(c.getCustomerId());
+            cmText.append("Appointment #").append(c.getAppointmentId())
+                  .append(" | Customer: ").append(customer != null ? customer.getFullName() : "Unknown")
+                  .append("\n").append(c.getContent()).append("\n\n");
+        }
+        commentArea.setText(cmText.length() > 0 ? cmText.toString() : "No comments available.");
+    }
+    
+    @Override
+    protected void addEventHandlers() {
+    }
+}

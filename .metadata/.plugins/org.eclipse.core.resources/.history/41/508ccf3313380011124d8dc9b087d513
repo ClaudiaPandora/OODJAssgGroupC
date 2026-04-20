@@ -1,0 +1,228 @@
+package dao;
+
+import enums.UserRole;
+import models.*;
+import utils.FileUtils;
+import utils.IDGenerator;
+import java.util.*;
+
+public class UserDAO implements FileDAO<User> {
+    
+    @Override
+    public List<User> readAll() {
+        List<User> users = new ArrayList<>();
+        users.addAll(readManagers());
+        users.addAll(readCounterStaff());
+        users.addAll(readTechnicians());
+        users.addAll(readCustomers());
+        return users;
+    }
+    
+    public List<Manager> readManagers() {
+        List<String> lines = FileUtils.readLines("src/data/managers.txt");
+        List<Manager> managers = new ArrayList<>();
+        for (String line : lines) {
+            if (line != null && !line.trim().isEmpty()) {
+                Manager m = Manager.fromString(line);
+                if (m != null) managers.add(m);
+            }
+        }
+        return managers;
+    }
+    
+    public List<CounterStaff> readCounterStaff() {
+        List<String> lines = FileUtils.readLines("src/data/counter_staff.txt");
+        List<CounterStaff> staff = new ArrayList<>();
+        for (String line : lines) {
+            if (line != null && !line.trim().isEmpty()) {
+                CounterStaff c = CounterStaff.fromString(line);
+                if (c != null) staff.add(c);
+            }
+        }
+        return staff;
+    }
+    
+    public List<Technician> readTechnicians() {
+        List<String> lines = FileUtils.readLines("src/data/technicians.txt");
+        List<Technician> techs = new ArrayList<>();
+        for (String line : lines) {
+            if (line != null && !line.trim().isEmpty()) {
+                Technician t = Technician.fromString(line);
+                if (t != null) techs.add(t);
+            }
+        }
+        return techs;
+    }
+    
+    public List<Customer> readCustomers() {
+        List<String> lines = FileUtils.readLines("src/data/customers.txt");
+        List<Customer> customers = new ArrayList<>();
+        for (String line : lines) {
+            if (line != null && !line.trim().isEmpty()) {
+                Customer c = Customer.fromString(line);
+                if (c != null) customers.add(c);
+            }
+        }
+        return customers;
+    }
+    
+    @Override
+    public User findById(String id) {
+        if (id == null) return null;
+        return readAll().stream()
+            .filter(u -> u != null && u.getId() != null && u.getId().equals(id))
+            .findFirst()
+            .orElse(null);
+    }
+    
+    public User findByUsername(String username) {
+        if (username == null) return null;
+        return readAll().stream()
+            .filter(u -> u != null && u.getUsername() != null && u.getUsername().equals(username))
+            .findFirst()
+            .orElse(null);
+    }
+    
+    @Override
+    public boolean save(User user) {
+        if (user == null) return false;
+        
+        List<String> lines;
+        String fileName;
+        
+        if (user instanceof Manager) {
+            fileName = "src/data/managers.txt";
+            lines = FileUtils.readLines(fileName);
+            if (user.getId() == null || user.getId().isEmpty()) {
+                user.setId(IDGenerator.generateID("M", readManagers().size()));
+            }
+            lines.add(user.toString());
+        } else if (user instanceof CounterStaff) {
+            fileName = "src/data/counter_staff.txt";
+            lines = FileUtils.readLines(fileName);
+            if (user.getId() == null || user.getId().isEmpty()) {
+                user.setId(IDGenerator.generateID("C", readCounterStaff().size()));
+            }
+            lines.add(user.toString());
+        } else if (user instanceof Technician) {
+            fileName = "src/data/technicians.txt";
+            lines = FileUtils.readLines(fileName);
+            if (user.getId() == null || user.getId().isEmpty()) {
+                user.setId(IDGenerator.generateID("T", readTechnicians().size()));
+            }
+            lines.add(user.toString());
+        } else if (user instanceof Customer) {
+            fileName = "src/data/customers.txt";
+            lines = FileUtils.readLines(fileName);
+            if (user.getId() == null || user.getId().isEmpty()) {
+                user.setId(IDGenerator.generateID("U", readCustomers().size()));
+            }
+            lines.add(user.toString());
+        } else {
+            return false;
+        }
+        
+        return FileUtils.writeLines(fileName, lines);
+    }
+    
+    @Override
+    public boolean update(User user) {
+        if (user == null || user.getId() == null) return false;
+        return delete(user.getId()) && save(user);
+    }
+    
+    @Override
+    public boolean delete(String id) {
+        if (id == null) return false;
+        
+        if (id.startsWith("M")) {
+            List<Manager> managers = readManagers();
+            managers.removeIf(m -> m.getId().equals(id));
+            return saveManagers(managers);
+        } else if (id.startsWith("C")) {
+            List<CounterStaff> staff = readCounterStaff();
+            staff.removeIf(c -> c.getId().equals(id));
+            return saveCounterStaff(staff);
+        } else if (id.startsWith("T")) {
+            List<Technician> techs = readTechnicians();
+            techs.removeIf(t -> t.getId().equals(id));
+            return saveTechnicians(techs);
+        } else if (id.startsWith("U")) {
+            List<Customer> customers = readCustomers();
+            customers.removeIf(c -> c.getId().equals(id));
+            return saveCustomers(customers);
+        }
+        return false;
+    }
+    
+    private boolean saveManagers(List<Manager> managers) {
+        List<String> lines = new ArrayList<>();
+        for (Manager m : managers) {
+            lines.add(m.toString());
+        }
+        return FileUtils.writeLines("src/data/managers.txt", lines);
+    }
+    
+    private boolean saveCounterStaff(List<CounterStaff> staff) {
+        List<String> lines = new ArrayList<>();
+        for (CounterStaff c : staff) {
+            lines.add(c.toString());
+        }
+        return FileUtils.writeLines("src/data/counter_staff.txt", lines);
+    }
+    
+    private boolean saveTechnicians(List<Technician> techs) {
+        List<String> lines = new ArrayList<>();
+        for (Technician t : techs) {
+            lines.add(t.toString());
+        }
+        return FileUtils.writeLines("src/data/technicians.txt", lines);
+    }
+    
+    private boolean saveCustomers(List<Customer> customers) {
+        List<String> lines = new ArrayList<>();
+        for (Customer c : customers) {
+            lines.add(c.toString());
+        }
+        return FileUtils.writeLines("src/data/customers.txt", lines);
+    }
+    
+    @Override
+    public String getFileName() {
+        return "src/data/users.txt";
+    }
+    
+    // Method to initialize default data
+    public void initializeDefaultData() {
+        // Check if data already exists
+        if (!readAll().isEmpty()) {
+            return;
+        }
+        
+        // Create managers
+        Manager m1 = new Manager("M001", "manager1", "password", "John Manager", "manager@apu.edu.my", "012-3456789");
+        save(m1);
+        
+        // Create counter staff
+        CounterStaff c1 = new CounterStaff("C001", "counter1", "password", "Sarah Counter", "counter@apu.edu.my", "012-3456788");
+        CounterStaff c2 = new CounterStaff("C002", "counter2", "password", "Jane Counter", "counter2@apu.edu.my", "012-3456781");
+        save(c1);
+        save(c2);
+        
+        // Create technicians
+        Technician t1 = new Technician("T001", "tech1", "password", "Mike Technician", "tech1@apu.edu.my", "012-3456787");
+        Technician t2 = new Technician("T002", "tech2", "password", "Dave Technician", "tech2@apu.edu.my", "012-3456786");
+        Technician t3 = new Technician("T003", "tech3", "password", "Steve Technician", "tech3@apu.edu.my", "012-3456782");
+        save(t1);
+        save(t2);
+        save(t3);
+        
+        // Create customers
+        Customer cust1 = new Customer("U001", "cust1", "password", "Alice Customer", "alice@gmail.com", "012-3456785");
+        Customer cust2 = new Customer("U002", "cust2", "password", "Bob Customer", "bob@gmail.com", "012-3456784");
+        Customer cust3 = new Customer("U003", "cust3", "password", "Charlie Customer", "charlie@gmail.com", "012-3456783");
+        save(cust1);
+        save(cust2);
+        save(cust3);
+    }
+}

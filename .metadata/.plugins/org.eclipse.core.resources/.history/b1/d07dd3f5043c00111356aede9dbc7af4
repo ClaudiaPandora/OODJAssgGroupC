@@ -1,0 +1,4 @@
+package ui.manager;
+
+public class FeedbackPanel {
+}

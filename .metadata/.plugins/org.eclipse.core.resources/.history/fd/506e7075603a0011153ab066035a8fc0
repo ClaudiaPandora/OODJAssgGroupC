@@ -1,0 +1,134 @@
+package ui.manager;
+
+import enums.UserRole;
+import models.User;
+
+import javax.swing.*;
+import java.awt.*;
+
+public class StaffFormPanel extends JPanel {
+
+    public enum Mode {
+        CREATE, UPDATE
+    }
+
+    private JTextField fullNameField;
+    private JTextField emailField;
+    private JTextField phoneField;
+    private JTextField usernameField;
+    private JPasswordField passwordField;
+    private JComboBox<String> roleComboBox;
+
+    private Mode mode;
+
+    public StaffFormPanel(Mode mode, User user) {
+        this.mode = mode;
+
+        setLayout(new BorderLayout());
+        setBackground(Color.WHITE);
+
+        initializeComponents();
+        setupLayout();
+
+        if (mode == Mode.UPDATE && user != null) {
+            populateFields(user);
+        }
+    }
+
+    private void initializeComponents() {
+        fullNameField = new JTextField(20);
+        emailField = new JTextField(20);
+        phoneField = new JTextField(20);
+        usernameField = new JTextField(20);
+        passwordField = new JPasswordField(20);
+
+        String[] roles = {"MANAGER", "COUNTER STAFF", "TECHNICIAN"};
+        roleComboBox = new JComboBox<>(roles);
+
+        styleField(fullNameField);
+        styleField(emailField);
+        styleField(phoneField);
+        styleField(usernameField);
+        styleField(passwordField);
+        styleCombo(roleComboBox);
+
+        // Disable username in update mode
+        if (mode == Mode.UPDATE) {
+            usernameField.setEditable(false);
+            usernameField.setBackground(new Color(248, 248, 248));
+        }
+    }
+
+    private void setupLayout() {
+        JPanel formPanel = new JPanel(new GridBagLayout());
+        formPanel.setBackground(Color.WHITE);
+        formPanel.setBorder(BorderFactory.createEmptyBorder(35, 50, 35, 50));
+
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+        gbc.insets = new Insets(10, 10, 10, 10);
+
+        addField(formPanel, gbc, 0, "Full Name:", fullNameField);
+        addField(formPanel, gbc, 1, "Email:", emailField);
+        addField(formPanel, gbc, 2, "Phone:", phoneField);
+        addField(formPanel, gbc, 3, "Username:", usernameField);
+        addField(formPanel, gbc, 4, "Password:", passwordField);
+        addField(formPanel, gbc, 5, "Role:", roleComboBox);
+
+        add(formPanel, BorderLayout.CENTER);
+    }
+
+    private void addField(JPanel panel, GridBagConstraints gbc, int y, String label, JComponent field) {
+        gbc.gridx = 0;
+        gbc.gridy = y;
+        panel.add(createLabel(label), gbc);
+
+        gbc.gridx = 1;
+        panel.add(field, gbc);
+    }
+
+    private JLabel createLabel(String text) {
+        JLabel label = new JLabel(text);
+        label.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        label.setForeground(new Color(60, 60, 60));
+        label.setPreferredSize(new Dimension(100, 30));
+        return label;
+    }
+
+    private void styleField(JTextField field) {
+        field.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        field.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(new Color(200, 200, 200), 1),
+                BorderFactory.createEmptyBorder(10, 12, 10, 12)
+        ));
+        field.setPreferredSize(new Dimension(300, 40));
+    }
+
+    private void styleCombo(JComboBox<String> combo) {
+        combo.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        combo.setBorder(BorderFactory.createLineBorder(new Color(200, 200, 200), 1));
+        combo.setPreferredSize(new Dimension(300, 40));
+        combo.setBackground(Color.WHITE);
+    }
+
+    private void populateFields(User user) {
+        fullNameField.setText(user.getFullName());
+        emailField.setText(user.getEmail());
+        phoneField.setText(user.getPhone());
+        usernameField.setText(user.getUsername());
+        passwordField.setText(user.getPassword());
+
+        String role = user.getRoleDisplayName();
+        if (role.equals("Manager")) roleComboBox.setSelectedItem("MANAGER");
+        else if (role.equals("Counter Staff")) roleComboBox.setSelectedItem("COUNTER STAFF");
+        else roleComboBox.setSelectedItem("TECHNICIAN");
+    }
+
+    // ===== GETTERS =====
+    public String getFullName() { return fullNameField.getText().trim(); }
+    public String getEmail() { return emailField.getText().trim(); }
+    public String getPhone() { return phoneField.getText().trim(); }
+    public String getUsername() { return usernameField.getText().trim(); }
+    public String getPassword() { return new String(passwordField.getPassword()); }
+    public String getRole() { return (String) roleComboBox.getSelectedItem(); }
+}

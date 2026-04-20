@@ -1,0 +1,50 @@
+package services;
+
+import dao.UserDAO;
+import exceptions.AuthenticationException;
+import models.User;
+
+public class AuthenticationService {
+    
+    private UserDAO userDAO;
+    private User currentUser;
+    
+    public AuthenticationService() {
+        this.userDAO = new UserDAO();
+    }
+    
+    public User login(String username, String password) throws AuthenticationException {
+        if (username == null || username.trim().isEmpty()) {
+            throw new AuthenticationException("Username is required");
+        }
+        
+        if (password == null || password.isEmpty()) {
+            throw new AuthenticationException("Password is required");
+        }
+        
+        User user = userDAO.findByUsername(username);
+        
+        if (user == null) {
+            throw new AuthenticationException("Invalid username or password");
+        }
+        
+        if (!password.equals(user.getPassword())) {
+            throw new AuthenticationException("Invalid username or password");
+        }
+        
+        this.currentUser = user;
+        return user;
+    }
+    
+    public void logout() {
+        this.currentUser = null;
+    }
+    
+    public User getCurrentUser() {
+        return currentUser;
+    }
+    
+    public boolean isAuthenticated() {
+        return currentUser != null;
+    }
+}

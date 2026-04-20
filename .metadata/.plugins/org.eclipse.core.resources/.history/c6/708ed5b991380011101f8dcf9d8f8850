@@ -1,0 +1,331 @@
+package ui.auth;
+
+import models.Customer;
+import models.User;
+import services.AuthenticationService;
+import ui.common.BaseFrame;
+import utils.ValidationUtils;
+import exceptions.ValidationException;
+
+import javax.swing.*;
+import java.awt.*;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
+import java.awt.geom.RoundRectangle2D;
+
+public class RegistrationFrame extends BaseFrame {
+    
+    private static final long serialVersionUID = 1L;
+    
+    private JTextField fullNameField;
+    private JTextField emailField;
+    private JTextField phoneField;
+    private JTextField usernameField;
+    private JPasswordField passwordField;
+    private JComboBox<String> roleComboBox;
+    private AuthenticationService authService;
+    private boolean isStandalone;
+    
+    public RegistrationFrame() {
+        this(null, true);
+    }
+    
+    public RegistrationFrame(Frame owner, boolean modal) {
+        super();
+        this.authService = new AuthenticationService();
+        this.isStandalone = (owner == null);
+        
+        setTitle("Register New Staff");
+        setSize(450, 550);
+        setLocationRelativeTo(owner);
+        setResizable(false);
+        
+        initializeComponents();
+        setupLayout();
+        addEventHandlers();
+    }
+    
+    @Override
+    protected void initializeComponents() {
+        fullNameField = new JTextField(20);
+        emailField = new JTextField(20);
+        phoneField = new JTextField(20);
+        usernameField = new JTextField(20);
+        passwordField = new JPasswordField(20);
+        
+        String[] roles = {"TECHNICIAN", "COUNTER_STAFF", "MANAGER"};
+        roleComboBox = new JComboBox<>(roles);
+        
+        Font fieldFont = new Font("Segoe UI", Font.PLAIN, 13);
+        fullNameField.setFont(fieldFont);
+        emailField.setFont(fieldFont);
+        phoneField.setFont(fieldFont);
+        usernameField.setFont(fieldFont);
+        passwordField.setFont(fieldFont);
+        roleComboBox.setFont(fieldFont);
+    }
+    
+    @Override
+    protected void setupLayout() {
+        JPanel mainPanel = new JPanel(new BorderLayout());
+        mainPanel.setBackground(NAVY_BLUE);
+        
+        JPanel cardPanel = new JPanel();
+        cardPanel.setLayout(new BoxLayout(cardPanel, BoxLayout.Y_AXIS));
+        cardPanel.setBackground(Color.WHITE);
+        cardPanel.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createLineBorder(BORDER_LIGHT, 2),
+            BorderFactory.createLineBorder(BORDER_DARK, 2)
+        ));
+        
+        // Header
+        JPanel headerPanel = new JPanel();
+        headerPanel.setBackground(NAVY_BLUE);
+        headerPanel.setPreferredSize(new Dimension(450, 100));
+        headerPanel.setMaximumSize(new Dimension(450, 100));
+        headerPanel.setLayout(new BoxLayout(headerPanel, BoxLayout.Y_AXIS));
+        headerPanel.setBorder(BorderFactory.createMatteBorder(0, 0, 1, 0, Color.BLACK));
+        
+        JPanel iconPanel = new JPanel(new FlowLayout(FlowLayout.CENTER));
+        iconPanel.setOpaque(false);
+        
+        JLabel iconLabel = new JLabel("👤+");
+        iconLabel.setFont(new Font("Segoe UI", Font.BOLD, 28));
+        iconLabel.setForeground(NAVY_BLUE);
+        iconLabel.setBackground(YELLOW);
+        iconLabel.setOpaque(true);
+        iconLabel.setBorder(BorderFactory.createEmptyBorder(8, 12, 8, 12));
+        iconPanel.add(iconLabel);
+        
+        JLabel titleLabel = new JLabel("Register New Staff");
+        titleLabel.setFont(new Font("Segoe UI", Font.BOLD, 16));
+        titleLabel.setForeground(Color.WHITE);
+        titleLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
+        
+        headerPanel.add(Box.createVerticalStrut(12));
+        headerPanel.add(iconPanel);
+        headerPanel.add(Box.createVerticalStrut(8));
+        headerPanel.add(titleLabel);
+        
+        cardPanel.add(headerPanel);
+        
+        // Form Panel
+        JPanel formPanel = new JPanel();
+        formPanel.setLayout(new GridBagLayout());
+        formPanel.setBackground(Color.WHITE);
+        formPanel.setBorder(BorderFactory.createEmptyBorder(25, 35, 20, 35));
+        
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+        gbc.insets = new Insets(5, 5, 5, 5);
+        gbc.weightx = 1.0;
+        
+        // Full Name
+        gbc.gridx = 0; gbc.gridy = 0;
+        formPanel.add(createLabel("Full Name"), gbc);
+        gbc.gridy = 1;
+        formPanel.add(createInsetField(fullNameField), gbc);
+        
+        // Email
+        gbc.gridy = 2;
+        formPanel.add(createLabel("Email"), gbc);
+        gbc.gridy = 3;
+        formPanel.add(createInsetField(emailField), gbc);
+        
+        // Phone
+        gbc.gridy = 4;
+        formPanel.add(createLabel("Phone"), gbc);
+        gbc.gridy = 5;
+        formPanel.add(createInsetField(phoneField), gbc);
+        
+        // Username
+        gbc.gridy = 6;
+        formPanel.add(createLabel("Username"), gbc);
+        gbc.gridy = 7;
+        formPanel.add(createInsetField(usernameField), gbc);
+        
+        // Password
+        gbc.gridy = 8;
+        formPanel.add(createLabel("Password"), gbc);
+        gbc.gridy = 9;
+        formPanel.add(createInsetField(passwordField), gbc);
+        
+        // Role
+        gbc.gridy = 10;
+        formPanel.add(createLabel("Role"), gbc);
+        gbc.gridy = 11;
+        formPanel.add(createInsetComboBox(roleComboBox), gbc);
+        
+        cardPanel.add(formPanel);
+        
+        // Button Panel
+        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 15, 0));
+        buttonPanel.setBackground(Color.WHITE);
+        buttonPanel.setBorder(BorderFactory.createEmptyBorder(10, 35, 25, 35));
+        
+        JButton registerButton = new JButton("REGISTER");
+        registerButton.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        registerButton.setBackground(NAVY_BLUE);
+        registerButton.setForeground(Color.WHITE);
+        registerButton.setFocusPainted(false);
+        registerButton.setBorderPainted(false);
+        registerButton.setOpaque(true);
+        registerButton.setContentAreaFilled(true);
+        registerButton.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        registerButton.setPreferredSize(new Dimension(160, 40));
+        registerButton.addActionListener(e -> handleRegistration());
+        
+        JButton cancelButton = new JButton("CANCEL");
+        cancelButton.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        cancelButton.setFocusPainted(false);
+        cancelButton.setPreferredSize(new Dimension(160, 40));
+        cancelButton.addActionListener(e -> dispose());
+        
+        buttonPanel.add(registerButton);
+        buttonPanel.add(cancelButton);
+        
+        cardPanel.add(buttonPanel);
+        
+        // Footer
+        JPanel footerPanel = new JPanel(new FlowLayout(FlowLayout.CENTER));
+        footerPanel.setBackground(new Color(245, 245, 245));
+        footerPanel.setBorder(BorderFactory.createMatteBorder(1, 0, 0, 0, BORDER_DARK));
+        footerPanel.setPreferredSize(new Dimension(450, 35));
+        footerPanel.setMaximumSize(new Dimension(450, 35));
+        
+        JLabel footerLabel = new JLabel("APU-ASC Staff Registration");
+        footerLabel.setFont(new Font("Segoe UI", Font.BOLD, 9));
+        footerLabel.setForeground(Color.GRAY);
+        footerPanel.add(footerLabel);
+        
+        cardPanel.add(footerPanel);
+        
+        mainPanel.add(cardPanel, BorderLayout.CENTER);
+        add(mainPanel);
+    }
+    
+    private JLabel createLabel(String text) {
+        JLabel label = new JLabel(text);
+        label.setFont(new Font("Segoe UI", Font.BOLD, 10));
+        label.setForeground(new Color(100, 100, 100));
+        return label;
+    }
+    
+    private JPanel createInsetField(JTextField field) {
+        JPanel panel = new JPanel(new BorderLayout());
+        panel.setBackground(Color.WHITE);
+        panel.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createLineBorder(BORDER_DARK, 2),
+            BorderFactory.createLineBorder(BORDER_LIGHT, 2)
+        ));
+        field.setBorder(BorderFactory.createEmptyBorder(8, 10, 8, 10));
+        panel.add(field, BorderLayout.CENTER);
+        return panel;
+    }
+    
+    private JPanel createInsetComboBox(JComboBox<String> comboBox) {
+        JPanel panel = new JPanel(new BorderLayout());
+        panel.setBackground(Color.WHITE);
+        panel.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createLineBorder(BORDER_DARK, 2),
+            BorderFactory.createLineBorder(BORDER_LIGHT, 2)
+        ));
+        comboBox.setBorder(BorderFactory.createEmptyBorder(5, 8, 5, 8));
+        panel.add(comboBox, BorderLayout.CENTER);
+        return panel;
+    }
+    
+    @Override
+    protected void addEventHandlers() {
+        passwordField.addActionListener(e -> handleRegistration());
+    }
+    
+    private void handleRegistration() {
+        String fullName = fullNameField.getText().trim();
+        String email = emailField.getText().trim();
+        String phone = phoneField.getText().trim();
+        String username = usernameField.getText().trim();
+        String password = new String(passwordField.getPassword());
+        String role = (String) roleComboBox.getSelectedItem();
+        
+        // Validation
+        if (fullName.isEmpty() || username.isEmpty() || password.isEmpty()) {
+            JOptionPane.showMessageDialog(this,
+                "Please fill all required fields (Full Name, Username, Password).",
+                "Validation Error",
+                JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+        
+        if (!email.isEmpty() && !ValidationUtils.isValidEmail(email)) {
+            JOptionPane.showMessageDialog(this,
+                "Please enter a valid email address.",
+                "Validation Error",
+                JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+        
+        if (password.length() < 6) {
+            JOptionPane.showMessageDialog(this,
+                "Password must be at least 6 characters long.",
+                "Validation Error",
+                JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+        
+        // Create user
+        User newUser = createUserByRole(fullName, email, phone, username, password, role);
+        
+        if (newUser != null) {
+            dao.UserDAO userDAO = new dao.UserDAO();
+            
+            // Check if username already exists
+            if (userDAO.findByUsername(username) != null) {
+                JOptionPane.showMessageDialog(this,
+                    "Username already exists. Please choose another username.",
+                    "Registration Error",
+                    JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+            
+            boolean saved = userDAO.save(newUser);
+            
+            if (saved) {
+                JOptionPane.showMessageDialog(this,
+                    "Staff registered successfully!\nID: " + newUser.getId(),
+                    "Success",
+                    JOptionPane.INFORMATION_MESSAGE);
+                clearForm();
+                dispose();
+            } else {
+                JOptionPane.showMessageDialog(this,
+                    "Failed to register staff. Please try again.",
+                    "Error",
+                    JOptionPane.ERROR_MESSAGE);
+            }
+        }
+    }
+    
+    private User createUserByRole(String fullName, String email, String phone,
+                                   String username, String password, String role) {
+        switch (role) {
+            case "MANAGER":
+                return new Manager(null, username, password, fullName, email, phone);
+            case "COUNTER_STAFF":
+                return new CounterStaff(null, username, password, fullName, email, phone);
+            case "TECHNICIAN":
+                return new Technician(null, username, password, fullName, email, phone);
+            default:
+                return null;
+        }
+    }
+    
+    private void clearForm() {
+        fullNameField.setText("");
+        emailField.setText("");
+        phoneField.setText("");
+        usernameField.setText("");
+        passwordField.setText("");
+        roleComboBox.setSelectedIndex(0);
+    }
+}

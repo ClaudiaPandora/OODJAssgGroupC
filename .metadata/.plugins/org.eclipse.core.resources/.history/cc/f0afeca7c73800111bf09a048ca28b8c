@@ -1,0 +1,464 @@
+package ui.manager;
+
+import dao.UserDAO;
+import enums.UserRole;
+import models.*;
+import ui.common.BasePanel;
+import ui.auth.RegistrationFrame;
+
+import javax.swing.*;
+import javax.swing.table.DefaultTableModel;
+import javax.swing.table.DefaultTableCellRenderer;
+import javax.swing.table.JTableHeader;
+import javax.swing.border.EmptyBorder;
+import java.awt.*;
+import java.awt.geom.RoundRectangle2D;
+import java.util.List;
+
+public class StaffManagementPanel extends BasePanel {
+    
+    private UserDAO userDAO;
+    private JTable staffTable;
+    private DefaultTableModel tableModel;
+    
+    public StaffManagementPanel() {
+        this.userDAO = new UserDAO();
+        setLayout(new BorderLayout());
+        setBackground(PANEL_BG);
+        setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
+        
+        initializeComponents();
+        setupLayout();
+        addEventHandlers();
+        loadStaffData();
+    }
+    
+    @Override
+    protected void initializeComponents() {
+        String[] columns = {"ID", "Name", "Role", "Email", "Phone", "Username", "Action"};
+        tableModel = new DefaultTableModel(columns, 0) {
+            @Override
+            public boolean isCellEditable(int row, int column) {
+                return column == 6;
+            }
+        };
+        staffTable = new JTable(tableModel);
+        staffTable.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        staffTable.setRowHeight(38);
+        staffTable.setShowGrid(true);
+        staffTable.setGridColor(new Color(230, 230, 230));
+        staffTable.setSelectionBackground(new Color(232, 242, 254));
+        staffTable.setSelectionForeground(Color.BLACK);
+        staffTable.setFocusable(false);
+        staffTable.setIntercellSpacing(new Dimension(1, 1));
+        
+        // Table header 
+        JTableHeader header = staffTable.getTableHeader();
+        header.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        header.setPreferredSize(new Dimension(header.getWidth(), 38));
+        header.setBorder(BorderFactory.createMatteBorder(0, 0, 2, 0, NAVY_BLUE));
+        header.setReorderingAllowed(false);
+
+        // FORCE background color to show
+        header.setDefaultRenderer(new DefaultTableCellRenderer() {
+            @Override
+            public Component getTableCellRendererComponent(JTable table, Object value,
+                                                           boolean isSelected, boolean hasFocus,
+                                                           int row, int column) {
+                JLabel label = new JLabel(value.toString(), JLabel.CENTER);
+                label.setFont(new Font("Segoe UI", Font.BOLD, 12));
+                label.setOpaque(true);
+                label.setBackground(new Color(246, 243, 244)); // ✅ your required color
+                label.setForeground(new Color(60, 60, 60));
+                label.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
+                return label;
+            }
+        });
+        
+        // Center align ID and Role columns
+        DefaultTableCellRenderer centerRenderer = new DefaultTableCellRenderer();
+        centerRenderer.setHorizontalAlignment(JLabel.CENTER);
+        staffTable.getColumnModel().getColumn(0).setCellRenderer(centerRenderer);
+        staffTable.getColumnModel().getColumn(2).setCellRenderer(centerRenderer);
+        
+        // Set column widths
+        staffTable.getColumnModel().getColumn(0).setPreferredWidth(60);
+        staffTable.getColumnModel().getColumn(1).setPreferredWidth(150);
+        staffTable.getColumnModel().getColumn(2).setPreferredWidth(100);
+        staffTable.getColumnModel().getColumn(3).setPreferredWidth(180);
+        staffTable.getColumnModel().getColumn(4).setPreferredWidth(120);
+        staffTable.getColumnModel().getColumn(5).setPreferredWidth(100);
+        staffTable.getColumnModel().getColumn(6).setPreferredWidth(90);
+        
+        // Action column with buttons
+        staffTable.getColumnModel().getColumn(6).setCellRenderer(new ActionCellRenderer());
+        staffTable.getColumnModel().getColumn(6).setCellEditor(new ActionCellEditor());
+    }
+    
+    @Override
+    protected void setupLayout() {
+        JPanel mainPanel = new JPanel(new BorderLayout());
+        mainPanel.setBackground(PANEL_BG);
+        
+        // Header
+        JPanel headerPanel = new JPanel(new BorderLayout());
+        headerPanel.setBackground(PANEL_BG);
+        headerPanel.setBorder(BorderFactory.createEmptyBorder(0, 0, 15, 0));
+        
+        JLabel titleLabel = new JLabel("Staff Management");
+        titleLabel.setFont(new Font("Segoe UI", Font.BOLD, 22));
+        titleLabel.setForeground(NAVY_BLUE);
+        headerPanel.add(titleLabel, BorderLayout.WEST);
+        
+        JButton addButton = createNavyButton("+ ADD STAFF");
+        addButton.addActionListener(e -> openRegistrationFrame());
+        headerPanel.add(addButton, BorderLayout.EAST);
+        
+        mainPanel.add(headerPanel, BorderLayout.NORTH);
+        
+        // Table with thin black outline
+        JPanel tablePanel = new JPanel(new BorderLayout());
+        tablePanel.setBackground(Color.WHITE);
+        tablePanel.setBorder(BorderFactory.createLineBorder(Color.BLACK, 1));
+        
+        JScrollPane scrollPane = new JScrollPane(staffTable);
+        scrollPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED);
+        scrollPane.setBorder(BorderFactory.createEmptyBorder());
+        scrollPane.getViewport().setBackground(Color.WHITE);
+        tablePanel.add(scrollPane, BorderLayout.CENTER);
+        
+        mainPanel.add(tablePanel, BorderLayout.CENTER);
+        
+        add(mainPanel);
+    }
+    
+    private JButton createNavyButton(String text) {
+        JButton button = new JButton(text);
+        button.setFont(new Font("Segoe UI", Font.BOLD, 11));
+        button.setBackground(NAVY_BLUE);
+        button.setForeground(Color.WHITE);
+        button.setFocusPainted(false);
+        button.setBorderPainted(false);
+        button.setOpaque(true);
+        button.setContentAreaFilled(true);
+        button.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        button.setBorder(BorderFactory.createEmptyBorder(8, 15, 8, 15));
+        
+        // Hover effect
+        button.addMouseListener(new java.awt.event.MouseAdapter() {
+            @Override
+            public void mouseEntered(java.awt.event.MouseEvent e) {
+                button.setBackground(new Color(0, 0, 100));
+            }
+            
+            @Override
+            public void mouseExited(java.awt.event.MouseEvent e) {
+                button.setBackground(NAVY_BLUE);
+            }
+        });
+        
+        return button;
+    }
+    
+    private void loadStaffData() {
+        tableModel.setRowCount(0);
+        List<User> allUsers = userDAO.readAll();
+        
+        for (User user : allUsers) {
+            if (user.getRole() != UserRole.CUSTOMER) {
+                Object[] row = {
+                    user.getId(),
+                    user.getFullName(),
+                    user.getRoleDisplayName(),
+                    user.getEmail(),
+                    user.getPhone(),
+                    user.getUsername(),
+                    user
+                };
+                tableModel.addRow(row);
+            }
+        }
+    }
+    
+    private void openRegistrationFrame() {
+        RegistrationFrame regFrame = new RegistrationFrame();
+        regFrame.addWindowListener(new java.awt.event.WindowAdapter() {
+            @Override
+            public void windowClosed(java.awt.event.WindowEvent e) {
+                loadStaffData();
+            }
+        });
+        regFrame.setVisible(true);
+    }
+    
+    private void showEditStaffDialog(User user) {
+        JDialog dialog = new JDialog((Frame) SwingUtilities.getWindowAncestor(this), "Edit Staff", true);
+        dialog.setSize(420, 400);
+        dialog.setLocationRelativeTo(this);
+        dialog.setLayout(new BorderLayout());
+        
+        JPanel formPanel = new JPanel(new GridBagLayout());
+        formPanel.setBackground(Color.WHITE);
+        formPanel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
+        
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+        gbc.insets = new Insets(5, 5, 5, 5);
+        
+        JTextField nameField = new JTextField(user.getFullName(), 20);
+        JTextField emailField = new JTextField(user.getEmail(), 20);
+        JTextField phoneField = new JTextField(user.getPhone(), 20);
+        JTextField usernameField = new JTextField(user.getUsername(), 20);
+        usernameField.setEditable(false);
+        usernameField.setBackground(new Color(240, 240, 240));
+        JPasswordField passwordField = new JPasswordField(user.getPassword(), 20);
+        JComboBox<String> roleCombo = new JComboBox<>(new String[]{"TECHNICIAN", "COUNTER_STAFF", "MANAGER"});
+        roleCombo.setSelectedItem(user.getRole().toString());
+        
+        // Style fields
+        styleTextField(nameField);
+        styleTextField(emailField);
+        styleTextField(phoneField);
+        styleTextField(usernameField);
+        styleTextField(passwordField);
+        styleComboBox(roleCombo);
+        
+        // Labels and fields
+        gbc.gridx = 0; gbc.gridy = 0;
+        formPanel.add(createLabel("Full Name:"), gbc);
+        gbc.gridx = 1;
+        formPanel.add(nameField, gbc);
+        
+        gbc.gridx = 0; gbc.gridy = 1;
+        formPanel.add(createLabel("Email:"), gbc);
+        gbc.gridx = 1;
+        formPanel.add(emailField, gbc);
+        
+        gbc.gridx = 0; gbc.gridy = 2;
+        formPanel.add(createLabel("Phone:"), gbc);
+        gbc.gridx = 1;
+        formPanel.add(phoneField, gbc);
+        
+        gbc.gridx = 0; gbc.gridy = 3;
+        formPanel.add(createLabel("Username:"), gbc);
+        gbc.gridx = 1;
+        formPanel.add(usernameField, gbc);
+        
+        gbc.gridx = 0; gbc.gridy = 4;
+        formPanel.add(createLabel("Password:"), gbc);
+        gbc.gridx = 1;
+        formPanel.add(passwordField, gbc);
+        
+        gbc.gridx = 0; gbc.gridy = 5;
+        formPanel.add(createLabel("Role:"), gbc);
+        gbc.gridx = 1;
+        formPanel.add(roleCombo, gbc);
+        
+        dialog.add(formPanel, BorderLayout.CENTER);
+        
+        // Buttons
+        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 15));
+        buttonPanel.setBackground(Color.WHITE);
+        buttonPanel.setBorder(BorderFactory.createMatteBorder(1, 0, 0, 0, new Color(230, 230, 230)));
+        
+        JButton updateButton = createNavyButton("UPDATE");
+        updateButton.addActionListener(e -> {
+            String name = nameField.getText().trim();
+            String email = emailField.getText().trim();
+            String phone = phoneField.getText().trim();
+            String password = new String(passwordField.getPassword());
+            String role = (String) roleCombo.getSelectedItem();
+            
+            if (name.isEmpty() || password.isEmpty()) {
+                JOptionPane.showMessageDialog(dialog, "Please fill all required fields.");
+                return;
+            }
+            
+            user.setFullName(name);
+            user.setEmail(email);
+            user.setPhone(phone);
+            user.setPassword(password);
+            user.setRole(UserRole.valueOf(role));
+            
+            userDAO.update(user);
+            loadStaffData();
+            dialog.dispose();
+            JOptionPane.showMessageDialog(this, "Staff updated successfully!");
+        });
+        
+        JButton cancelButton = new JButton("Cancel");
+        cancelButton.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        cancelButton.setFocusPainted(false);
+        cancelButton.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        cancelButton.addActionListener(e -> dialog.dispose());
+        
+        buttonPanel.add(updateButton);
+        buttonPanel.add(cancelButton);
+        dialog.add(buttonPanel, BorderLayout.SOUTH);
+        
+        dialog.setVisible(true);
+    }
+    
+    private void styleTextField(JTextField field) {
+        field.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        field.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createLineBorder(new Color(200, 200, 200), 1),
+            BorderFactory.createEmptyBorder(6, 8, 6, 8)
+        ));
+    }
+    
+    private void styleComboBox(JComboBox<String> combo) {
+        combo.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        combo.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createLineBorder(new Color(200, 200, 200), 1),
+            BorderFactory.createEmptyBorder(6, 8, 6, 8)
+        ));
+    }
+    
+    private JLabel createLabel(String text) {
+        JLabel label = new JLabel(text);
+        label.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        label.setForeground(new Color(60, 60, 60));
+        return label;
+    }
+    
+    private void deleteStaff(User user) {
+        int confirm = JOptionPane.showConfirmDialog(this,
+            "Are you sure you want to delete " + user.getFullName() + "?",
+            "Confirm Delete",
+            JOptionPane.YES_NO_OPTION,
+            JOptionPane.WARNING_MESSAGE);
+        
+        if (confirm == JOptionPane.YES_OPTION) {
+            userDAO.delete(user.getId());
+            loadStaffData();
+            JOptionPane.showMessageDialog(this, "Staff deleted successfully!");
+        }
+    }
+    
+    @Override
+    protected void addEventHandlers() {
+    }
+    
+    // Custom rounded button for action icons
+    private class RoundedActionButton extends JButton {
+        private Color bgColor;
+        private Color hoverColor;
+        
+        public RoundedActionButton(String text, Color color) {
+            super(text);
+            this.bgColor = color;
+            this.hoverColor = color.darker();
+
+            setFont(new Font("Segoe UI", Font.BOLD, 13));
+            setForeground(Color.WHITE);
+            setBackground(bgColor);
+
+            setBorderPainted(false);
+            setFocusPainted(false);
+            setContentAreaFilled(false); // ✅ IMPORTANT
+            setOpaque(false);            // ✅ IMPORTANT
+
+            setCursor(new Cursor(Cursor.HAND_CURSOR));
+            setPreferredSize(new Dimension(28, 28));
+
+            addMouseListener(new java.awt.event.MouseAdapter() {
+                @Override
+                public void mouseEntered(java.awt.event.MouseEvent e) {
+                    setBackground(hoverColor);
+                }
+
+                @Override
+                public void mouseExited(java.awt.event.MouseEvent e) {
+                    setBackground(bgColor);
+                }
+            });
+        }
+        
+        @Override
+        protected void paintComponent(Graphics g) {
+            Graphics2D g2d = (Graphics2D) g.create();
+            g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+
+            // Draw rounded background
+            g2d.setColor(getBackground());
+            g2d.fill(new RoundRectangle2D.Double(0, 0, getWidth(), getHeight(), 8, 8));
+
+            g2d.dispose();
+
+            super.paintComponent(g);
+        }
+    }
+    
+    // Action Cell Renderer with rounded buttons
+    private class ActionCellRenderer extends DefaultTableCellRenderer {
+        @Override
+        public Component getTableCellRendererComponent(JTable table, Object value,
+                                                       boolean isSelected, boolean hasFocus,
+                                                       int row, int column) {
+            JPanel panel = new JPanel(new FlowLayout(FlowLayout.CENTER, 10, 3));
+            panel.setBackground(isSelected ? new Color(232, 242, 254) : Color.WHITE);
+            
+            // Edit button with pencil icon
+            RoundedActionButton editBtn = new RoundedActionButton("✎", new Color(59, 130, 246));
+            editBtn.setToolTipText("Edit Staff");
+            
+            // Delete button with trash icon
+            RoundedActionButton deleteBtn = new RoundedActionButton("🗑", new Color(220, 38, 38));
+            deleteBtn.setToolTipText("Delete Staff");
+            
+            panel.add(editBtn);
+            panel.add(deleteBtn);
+            
+            return panel;
+        }
+    }
+
+    // Action Cell Editor with rounded buttons
+    private class ActionCellEditor extends DefaultCellEditor {
+        private JPanel panel;
+        private User currentUser;
+        
+        public ActionCellEditor() {
+            super(new JTextField());
+            
+            panel = new JPanel(new FlowLayout(FlowLayout.CENTER, 10, 3));
+            
+            // Edit button
+            RoundedActionButton editBtn = new RoundedActionButton("✎", new Color(59, 130, 246));
+            editBtn.setToolTipText("Edit Staff");
+            editBtn.addActionListener(e -> {
+                if (currentUser != null) {
+                    showEditStaffDialog(currentUser);
+                    fireEditingStopped();
+                }
+            });
+            
+            // Delete button
+            RoundedActionButton deleteBtn = new RoundedActionButton("🗑", new Color(220, 38, 38));
+            deleteBtn.setToolTipText("Delete Staff");
+            deleteBtn.addActionListener(e -> {
+                if (currentUser != null) {
+                    deleteStaff(currentUser);
+                    fireEditingStopped();
+                }
+            });
+            
+            panel.add(editBtn);
+            panel.add(deleteBtn);
+        }
+        
+        @Override
+        public Component getTableCellEditorComponent(JTable table, Object value,
+                                                     boolean isSelected, int row, int column) {
+            currentUser = (User) value;
+            panel.setBackground(isSelected ? new Color(232, 242, 254) : Color.WHITE);
+            return panel;
+        }
+        
+        @Override
+        public Object getCellEditorValue() {
+            return currentUser;
+        }
+    }
+}

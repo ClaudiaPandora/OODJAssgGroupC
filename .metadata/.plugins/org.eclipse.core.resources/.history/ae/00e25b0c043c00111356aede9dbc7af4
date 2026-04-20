@@ -1,0 +1,205 @@
+package ui.customer;
+
+import dao.AppointmentDAO;
+import dao.CommentDAO;
+import dao.UserDAO;
+import models.Appointment;
+import models.Comment;
+import models.User;
+import ui.common.BasePanel;
+
+import javax.swing.*;
+import javax.swing.table.DefaultTableModel;
+import java.awt.*;
+import java.util.List;
+
+public class HistoryPanel extends BasePanel {
+    
+    private User currentCustomer;
+    private AppointmentDAO appointmentDAO;
+    private CommentDAO commentDAO;
+    private UserDAO userDAO;
+    private JTable historyTable;
+    private DefaultTableModel tableModel;
+    private JDialog commentDialog;
+    private JTextArea commentArea;
+    private String selectedAppointmentId;
+    
+    public HistoryPanel(User customer) {
+        this.currentCustomer = customer;
+        this.appointmentDAO = new AppointmentDAO();
+        this.commentDAO = new CommentDAO();
+        this.userDAO = new UserDAO();
+        
+        setLayout(new BorderLayout());
+        setBackground(PANEL_BG);
+        setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
+        
+        initializeComponents();
+        setupLayout();
+        addEventHandlers();
+        loadHistoryData();
+    }
+    
+    @Override
+    protected void initializeComponents() {
+        String[] columns = {"Date", "Service", "Technician", "Status", "Amount"};
+        tableModel = new DefaultTableModel(columns, 0) {
+            @Override
+            public boolean isCellEditable(int row, int column) {
+                return false;
+            }
+        };
+        historyTable = new JTable(tableModel);
+        historyTable.setFont(new Font("Tahoma", Font.PLAIN, 12));
+        historyTable.setRowHeight(25);
+        
+        commentArea = new JTextArea(5, 40);
+        commentArea.setFont(new Font("Tahoma", Font.PLAIN, 12));
+        commentArea.setLineWrap(true);
+        commentArea.setWrapStyleWord(true);
+    }
+    
+    @Override
+    protected void setupLayout() {
+        JPanel mainPanel = new JPanel();
+        mainPanel.setLayout(new BoxLayout(mainPanel, BoxLayout.Y_AXIS));
+        mainPanel.setBackground(PANEL_BG);
+        
+        // Header
+        JPanel headerPanel = new JPanel(new BorderLayout());
+        headerPanel.setBackground(PANEL_BG);
+        headerPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 50));
+        
+        JLabel titleLabel = new JLabel("My Service History");
+        titleLabel.setFont(new Font("Tahoma", Font.BOLD, 24));
+        titleLabel.setForeground(NAVY_BLUE);
+        headerPanel.add(titleLabel, BorderLayout.WEST);
+        
+        JButton commentButton = new JButton("Add Comment");
+        commentButton.setFont(new Font("Tahoma", Font.BOLD, 11));
+        commentButton.setFocusPainted(false);
+        commentButton.addActionListener(e -> showCommentDialog());
+        headerPanel.add(commentButton, BorderLayout.EAST);
+        
+        mainPanel.add(headerPanel);
+        mainPanel.add(Box.createVerticalStrut(15));
+        
+        // Table
+        JPanel tablePanel = new JPanel(new BorderLayout());
+        tablePanel.setBackground(Color.WHITE);
+        tablePanel.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createLineBorder(BORDER_DARK, 2),
+            BorderFactory.createLineBorder(BORDER_LIGHT, 2)
+        ));
+        
+        JScrollPane scrollPane = new JScrollPane(historyTable);
+        tablePanel.add(scrollPane, BorderLayout.CENTER);
+        
+        mainPanel.add(tablePanel);
+        
+        add(new JScrollPane(mainPanel));
+        
+        // Create comment dialog
+        createCommentDialog();
+    }
+    
+    private void createCommentDialog() {
+        commentDialog = new JDialog((Frame) SwingUtilities.getWindowAncestor(this), "Add Comment", true);
+        commentDialog.setSize(500, 300);
+        commentDialog.setLocationRelativeTo(this);
+        commentDialog.setLayout(new BorderLayout());
+        
+        JPanel dialogPanel = new JPanel(new BorderLayout(10, 10));
+        dialogPanel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
+        dialogPanel.setBackground(new Color(240, 248, 255));
+        
+        JLabel instructionLabel = new JLabel("Enter your comment:");
+        instructionLabel.setFont(new Font("Tahoma", Font.BOLD, 12));
+        dialogPanel.add(instructionLabel, BorderLayout.NORTH);
+        
+        JScrollPane commentScroll = new JScrollPane(commentArea);
+        dialogPanel.add(commentScroll, BorderLayout.CENTER);
+        
+        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+        buttonPanel.setBackground(new Color(240, 248, 255));
+        
+        JButton submitButton = new JButton("SUBMIT");
+        submitButton.setBackground(NAVY_BLUE);
+        submitButton.setForeground(Color.WHITE);
+        submitButton.addActionListener(e -> submitComment());
+        
+        JButton cancelButton = new JButton("CANCEL");
+        cancelButton.addActionListener(e -> commentDialog.dispose());
+        
+        buttonPanel.add(submitButton);
+        buttonPanel.add(cancelButton);
+        
+        dialogPanel.add(buttonPanel, BorderLayout.SOUTH);
+        
+        commentDialog.add(dialogPanel);
+    }
+    
+    private void loadHistoryData() {
+        tableModel.setRowCount(0);
+        List<Appointment> appointments = appointmentDAO.findByCustomerId(currentCustomer.getId());
+        
+        for (Appointment appt : appointments) {
+            User technician = userDAO.findById(appt.getTechnicianId());
+            
+            Object[] row = {
+                appt.getDate() + " " + appt.getStartTime(),
+                appt.getServiceType().toString(),
+                technician != null ? technician.getFullName() : "N/A",
+                appt.getStatus().toString(),
+                appt.getAmount() > 0 ? String.format("RM %.2f", appt.getAmount()) : "-"
+            };
+            tableModel.addRow(row);
+        }
+    }
+    
+    private void showCommentDialog() {
+        int selectedRow = historyTable.getSelectedRow();
+        if (selectedRow >= 0) {
+            String dateTime = (String) tableModel.getValueAt(selectedRow, 0);
+            List<Appointment> appointments = appointmentDAO.findByCustomerId(currentCustomer.getId());
+            
+            for (Appointment appt : appointments) {
+                if ((appt.getDate() + " " + appt.getStartTime()).equals(dateTime)) {
+                    selectedAppointmentId = appt.getId();
+                    break;
+                }
+            }
+            
+            commentArea.setText("");
+            commentDialog.setVisible(true);
+        } else {
+            JOptionPane.showMessageDialog(this, "Please select an appointment to comment on.");
+        }
+    }
+    
+    private void submitComment() {
+        String commentText = commentArea.getText().trim();
+        if (commentText.isEmpty()) {
+            JOptionPane.showMessageDialog(commentDialog, "Please enter a comment.");
+            return;
+        }
+        
+        if (selectedAppointmentId != null) {
+            Comment comment = new Comment();
+            comment.setAppointmentId(selectedAppointmentId);
+            comment.setCustomerId(currentCustomer.getId());
+            comment.setContent(commentText);
+            
+            commentDAO.save(comment);
+            
+            commentDialog.dispose();
+            JOptionPane.showMessageDialog(this, "Comment submitted successfully!");
+        }
+    }
+    
+    @Override
+    protected void addEventHandlers() {
+        // Event handlers added inline
+    }
+}

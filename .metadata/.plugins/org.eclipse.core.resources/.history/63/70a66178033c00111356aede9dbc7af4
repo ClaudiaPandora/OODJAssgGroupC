@@ -1,0 +1,226 @@
+package ui.counter;
+
+import dao.AppointmentDAO;
+import dao.PaymentDAO;
+import dao.UserDAO;
+import enums.AppointmentStatus;
+import enums.PaymentMethod;
+import models.Appointment;
+import models.Payment;
+import models.User;
+import ui.common.BasePanel;
+import utils.DateUtils;
+import utils.IDGenerator;
+
+import javax.swing.*;
+import javax.swing.table.DefaultTableModel;
+import java.awt.*;
+import java.util.List;
+
+public class PaymentPanel extends BasePanel {
+    
+    private AppointmentDAO appointmentDAO;
+    private PaymentDAO paymentDAO;
+    private UserDAO userDAO;
+    private JTable pendingTable;
+    private JTable historyTable;
+    private DefaultTableModel pendingModel;
+    private DefaultTableModel historyModel;
+    
+    public PaymentPanel() {
+        this.appointmentDAO = new AppointmentDAO();
+        this.paymentDAO = new PaymentDAO();
+        this.userDAO = new UserDAO();
+        
+        setLayout(new BorderLayout());
+        setBackground(PANEL_BG);
+        setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
+        
+        initializeComponents();
+        setupLayout();
+        addEventHandlers();
+        loadPaymentData();
+    }
+    
+    @Override
+    protected void initializeComponents() {
+        String[] pendingColumns = {"Appointment ID", "Customer", "Service", "Amount", "Date"};
+        pendingModel = new DefaultTableModel(pendingColumns, 0) {
+            @Override
+            public boolean isCellEditable(int row, int column) {
+                return false;
+            }
+        };
+        pendingTable = new JTable(pendingModel);
+        pendingTable.setFont(new Font("Tahoma", Font.PLAIN, 12));
+        pendingTable.setRowHeight(25);
+        
+        String[] historyColumns = {"Receipt ID", "Appointment", "Customer", "Amount", "Date", "Method"};
+        historyModel = new DefaultTableModel(historyColumns, 0) {
+            @Override
+            public boolean isCellEditable(int row, int column) {
+                return false;
+            }
+        };
+        historyTable = new JTable(historyModel);
+        historyTable.setFont(new Font("Tahoma", Font.PLAIN, 12));
+        historyTable.setRowHeight(25);
+    }
+    
+    @Override
+    protected void setupLayout() {
+        JPanel mainPanel = new JPanel();
+        mainPanel.setLayout(new BoxLayout(mainPanel, BoxLayout.Y_AXIS));
+        mainPanel.setBackground(PANEL_BG);
+        
+        // Pending Payments Section
+        JPanel pendingSection = new JPanel(new BorderLayout());
+        pendingSection.setBackground(PANEL_BG);
+        pendingSection.setMaximumSize(new Dimension(Integer.MAX_VALUE, 300));
+        
+        JLabel pendingLabel = new JLabel("Pending Payments");
+        pendingLabel.setFont(new Font("Tahoma", Font.BOLD, 18));
+        pendingLabel.setForeground(NAVY_BLUE);
+        pendingLabel.setBorder(BorderFactory.createEmptyBorder(0, 0, 10, 0));
+        pendingSection.add(pendingLabel, BorderLayout.NORTH);
+        
+        JPanel pendingTablePanel = new JPanel(new BorderLayout());
+        pendingTablePanel.setBackground(Color.WHITE);
+        pendingTablePanel.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createLineBorder(BORDER_DARK, 2),
+            BorderFactory.createLineBorder(BORDER_LIGHT, 2)
+        ));
+        
+        JScrollPane pendingScroll = new JScrollPane(pendingTable);
+        pendingTablePanel.add(pendingScroll, BorderLayout.CENTER);
+        
+        JButton collectButton = new JButton("COLLECT PAYMENT");
+        collectButton.setBackground(new Color(34, 197, 94));
+        collectButton.setForeground(Color.WHITE);
+        collectButton.setFont(new Font("Tahoma", Font.BOLD, 12));
+        collectButton.addActionListener(e -> collectPayment());
+        pendingTablePanel.add(collectButton, BorderLayout.SOUTH);
+        
+        pendingSection.add(pendingTablePanel, BorderLayout.CENTER);
+        
+        mainPanel.add(pendingSection);
+        mainPanel.add(Box.createVerticalStrut(30));
+        
+        // Payment History Section
+        JPanel historySection = new JPanel(new BorderLayout());
+        historySection.setBackground(PANEL_BG);
+        
+        JLabel historyLabel = new JLabel("Payment History");
+        historyLabel.setFont(new Font("Tahoma", Font.BOLD, 18));
+        historyLabel.setForeground(NAVY_BLUE);
+        historyLabel.setBorder(BorderFactory.createEmptyBorder(0, 0, 10, 0));
+        historySection.add(historyLabel, BorderLayout.NORTH);
+        
+        JPanel historyTablePanel = new JPanel(new BorderLayout());
+        historyTablePanel.setBackground(Color.WHITE);
+        historyTablePanel.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createLineBorder(BORDER_DARK, 2),
+            BorderFactory.createLineBorder(BORDER_LIGHT, 2)
+        ));
+        
+        JScrollPane historyScroll = new JScrollPane(historyTable);
+        historyTablePanel.add(historyScroll, BorderLayout.CENTER);
+        
+        historySection.add(historyTablePanel, BorderLayout.CENTER);
+        
+        mainPanel.add(historySection);
+        
+        add(new JScrollPane(mainPanel));
+    }
+    
+    private void loadPaymentData() {
+        // Load pending payments (completed appointments)
+        pendingModel.setRowCount(0);
+        List<Appointment> appointments = appointmentDAO.readAll();
+        
+        for (Appointment appt : appointments) {
+            if (appt.getStatus() == AppointmentStatus.COMPLETED) {
+                User customer = userDAO.findById(appt.getCustomerId());
+                
+                Object[] row = {
+                    appt.getId(),
+                    customer != null ? customer.getFullName() : "Unknown",
+                    appt.getServiceType().toString(),
+                    String.format("RM %.2f", appt.getAmount()),
+                    appt.getDate()
+                };
+                pendingModel.addRow(row);
+            }
+        }
+        
+        // Load payment history
+        historyModel.setRowCount(0);
+        List<Payment> payments = paymentDAO.readAll();
+        
+        for (Payment payment : payments) {
+            Appointment appt = appointmentDAO.findById(payment.getAppointmentId());
+            User customer = appt != null ? userDAO.findById(appt.getCustomerId()) : null;
+            
+            Object[] row = {
+                payment.getId(),
+                payment.getAppointmentId(),
+                customer != null ? customer.getFullName() : "Unknown",
+                String.format("RM %.2f", payment.getAmount()),
+                payment.getPaymentDate(),
+                payment.getPaymentMethod().toString()
+            };
+            historyModel.addRow(row);
+        }
+    }
+    
+    private void collectPayment() {
+        int selectedRow = pendingTable.getSelectedRow();
+        if (selectedRow >= 0) {
+            String apptId = (String) pendingModel.getValueAt(selectedRow, 0);
+            
+            // Payment method selection
+            PaymentMethod[] methods = PaymentMethod.values();
+            PaymentMethod method = (PaymentMethod) JOptionPane.showInputDialog(
+                this,
+                "Select payment method:",
+                "Payment Method",
+                JOptionPane.QUESTION_MESSAGE,
+                null,
+                methods,
+                methods[0]
+            );
+            
+            if (method != null) {
+                Appointment appt = appointmentDAO.findById(apptId);
+                if (appt != null) {
+                    // Create payment
+                    Payment payment = new Payment();
+                    payment.setAppointmentId(apptId);
+                    payment.setAmount(appt.getAmount());
+                    payment.setPaymentDate(DateUtils.getCurrentDate());
+                    payment.setPaymentMethod(method);
+                    
+                    paymentDAO.save(payment);
+                    
+                    // Update appointment status
+                    appt.setStatus(AppointmentStatus.PAID);
+                    appointmentDAO.update(appt);
+                    
+                    loadPaymentData();
+                    
+                    JOptionPane.showMessageDialog(this, 
+                        "Payment collected successfully!\nReceipt ID: " + payment.getId(),
+                        "Payment Success",
+                        JOptionPane.INFORMATION_MESSAGE);
+                }
+            }
+        } else {
+            JOptionPane.showMessageDialog(this, "Please select an appointment to collect payment.");
+        }
+    }
+    
+    @Override
+    protected void addEventHandlers() {
+        // Event handlers added inline
+    }
+}

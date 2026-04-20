@@ -1,0 +1,342 @@
+package ui.counter;
+
+import dao.AppointmentDAO;
+import dao.UserDAO;
+import dao.ServiceDAO;
+import enums.AppointmentStatus;
+import enums.ServiceType;
+import models.Appointment;
+import models.Customer;
+import models.Technician;
+import models.User;
+import ui.common.BasePanel;
+import utils.IDGenerator;
+
+import javax.swing.*;
+import javax.swing.table.DefaultTableModel;
+import java.awt.*;
+import java.util.List;
+
+public class AppointmentPanel extends BasePanel {
+    
+    private AppointmentDAO appointmentDAO;
+    private UserDAO userDAO;
+    private ServiceDAO serviceDAO;
+    private JTable appointmentTable;
+    private DefaultTableModel tableModel;
+    private JPanel formPanel;
+    private JComboBox<String> customerCombo;
+    private JComboBox<String> serviceTypeCombo;
+    private JTextField dateField;
+    private JTextField timeField;
+    private JComboBox<String> technicianCombo;
+    private JComboBox<String> durationCombo;
+    
+    public AppointmentPanel() {
+        this.appointmentDAO = new AppointmentDAO();
+        this.userDAO = new UserDAO();
+        this.serviceDAO = new ServiceDAO();
+        
+        setLayout(new BorderLayout());
+        setBackground(PANEL_BG);
+        setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
+        
+        initializeComponents();
+        setupLayout();
+        addEventHandlers();
+        loadAppointmentData();
+    }
+    
+    @Override
+    protected void initializeComponents() {
+        String[] columns = {"ID", "Customer", "Type", "Technician", "Date", "Time", "Status"};
+        tableModel = new DefaultTableModel(columns, 0) {
+            @Override
+            public boolean isCellEditable(int row, int column) {
+                return false;
+            }
+        };
+        appointmentTable = new JTable(tableModel);
+        appointmentTable.setFont(new Font("Tahoma", Font.PLAIN, 12));
+        appointmentTable.setRowHeight(25);
+        
+        // Form components
+        List<Customer> customers = userDAO.readCustomers();
+        customerCombo = new JComboBox<>();
+        for (Customer c : customers) {
+            customerCombo.addItem(c.getId() + " - " + c.getFullName());
+        }
+        
+        serviceTypeCombo = new JComboBox<>(new String[]{"NORMAL", "MAJOR"});
+        
+        dateField = new JTextField(10);
+        dateField.setText(new java.text.SimpleDateFormat("yyyy-MM-dd").format(new java.util.Date()));
+        
+        timeField = new JTextField(5);
+        timeField.setText("10:00");
+        
+        List<Technician> technicians = userDAO.readTechnicians();
+        technicianCombo = new JComboBox<>();
+        technicianCombo.addItem("UNASSIGNED");
+        for (Technician t : technicians) {
+            technicianCombo.addItem(t.getId() + " - " + t.getFullName());
+        }
+        
+        durationCombo = new JComboBox<>(new String[]{"1", "2", "3", "4"});
+    }
+    
+    @Override
+    protected void setupLayout() {
+        JPanel mainPanel = new JPanel();
+        mainPanel.setLayout(new BoxLayout(mainPanel, BoxLayout.Y_AXIS));
+        mainPanel.setBackground(PANEL_BG);
+        
+        // Header
+        JPanel headerPanel = new JPanel(new BorderLayout());
+        headerPanel.setBackground(PANEL_BG);
+        headerPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 50));
+        
+        JLabel titleLabel = new JLabel("Appointment Management");
+        titleLabel.setFont(new Font("Tahoma", Font.BOLD, 24));
+        titleLabel.setForeground(NAVY_BLUE);
+        headerPanel.add(titleLabel, BorderLayout.WEST);
+        
+        JButton addButton = new JButton("+ NEW APPOINTMENT");
+        addButton.setFont(new Font("Tahoma", Font.BOLD, 11));
+        addButton.setFocusPainted(false);
+        addButton.addActionListener(e -> toggleForm());
+        headerPanel.add(addButton, BorderLayout.EAST);
+        
+        mainPanel.add(headerPanel);
+        mainPanel.add(Box.createVerticalStrut(15));
+        
+        // Form Panel
+        formPanel = createFormPanel();
+        formPanel.setVisible(false);
+        mainPanel.add(formPanel);
+        mainPanel.add(Box.createVerticalStrut(15));
+        
+        // Table
+        JPanel tablePanel = new JPanel(new BorderLayout());
+        tablePanel.setBackground(Color.WHITE);
+        tablePanel.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createLineBorder(BORDER_DARK, 2),
+            BorderFactory.createLineBorder(BORDER_LIGHT, 2)
+        ));
+        
+        JScrollPane scrollPane = new JScrollPane(appointmentTable);
+        tablePanel.add(scrollPane, BorderLayout.CENTER);
+        
+        // Action panel for assigning technicians
+        JPanel actionPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        actionPanel.setBackground(Color.WHITE);
+        
+        JLabel assignLabel = new JLabel("Assign Technician:");
+        JComboBox<String> assignTechnicianCombo = new JComboBox<>();
+        assignTechnicianCombo.addItem("Select Technician");
+        for (Technician t : technicians) {
+            assignTechnicianCombo.addItem(t.getId() + " - " + t.getFullName());
+        }
+        
+        JButton assignButton = new JButton("Assign");
+        assignButton.addActionListener(e -> assignTechnician(assignTechnicianCombo));
+        
+        actionPanel.add(assignLabel);
+        actionPanel.add(assignTechnicianCombo);
+        actionPanel.add(assignButton);
+        
+        tablePanel.add(actionPanel, BorderLayout.SOUTH);
+        
+        mainPanel.add(tablePanel);
+        
+        add(new JScrollPane(mainPanel));
+    }
+    
+    private JPanel createFormPanel() {
+        JPanel panel = new JPanel(new GridBagLayout());
+        panel.setBackground(new Color(240, 248, 255));
+        panel.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createLineBorder(BORDER_LIGHT, 2),
+            BorderFactory.createLineBorder(BORDER_DARK, 2)
+        ));
+        panel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 200));
+        
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.insets = new Insets(5, 10, 5, 10);
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+        
+        gbc.gridx = 0; gbc.gridy = 0;
+        panel.add(createLabel("Customer:"), gbc);
+        gbc.gridx = 1;
+        panel.add(customerCombo, gbc);
+        
+        gbc.gridx = 2;
+        panel.add(createLabel("Service Type:"), gbc);
+        gbc.gridx = 3;
+        panel.add(serviceTypeCombo, gbc);
+        
+        gbc.gridx = 0; gbc.gridy = 1;
+        panel.add(createLabel("Date (YYYY-MM-DD):"), gbc);
+        gbc.gridx = 1;
+        panel.add(dateField, gbc);
+        
+        gbc.gridx = 2;
+        panel.add(createLabel("Time (HH:MM):"), gbc);
+        gbc.gridx = 3;
+        panel.add(timeField, gbc);
+        
+        gbc.gridx = 0; gbc.gridy = 2;
+        panel.add(createLabel("Duration (hours):"), gbc);
+        gbc.gridx = 1;
+        panel.add(durationCombo, gbc);
+        
+        gbc.gridx = 2;
+        panel.add(createLabel("Technician:"), gbc);
+        gbc.gridx = 3;
+        panel.add(technicianCombo, gbc);
+        
+        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 10, 0));
+        buttonPanel.setBackground(new Color(240, 248, 255));
+        
+        JButton saveButton = new JButton("CREATE");
+        saveButton.setBackground(NAVY_BLUE);
+        saveButton.setForeground(Color.WHITE);
+        saveButton.addActionListener(e -> saveAppointment());
+        
+        JButton cancelButton = new JButton("CANCEL");
+        cancelButton.addActionListener(e -> hideForm());
+        
+        buttonPanel.add(saveButton);
+        buttonPanel.add(cancelButton);
+        
+        gbc.gridx = 0; gbc.gridy = 3;
+        gbc.gridwidth = 4;
+        panel.add(buttonPanel, gbc);
+        
+        return panel;
+    }
+    
+    private JLabel createLabel(String text) {
+        JLabel label = new JLabel(text);
+        label.setFont(new Font("Tahoma", Font.BOLD, 11));
+        return label;
+    }
+    
+    private void loadAppointmentData() {
+        tableModel.setRowCount(0);
+        List<Appointment> appointments = appointmentDAO.readAll();
+        
+        for (Appointment appt : appointments) {
+            User customer = userDAO.findById(appt.getCustomerId());
+            User technician = userDAO.findById(appt.getTechnicianId());
+            
+            Object[] row = {
+                appt.getId(),
+                customer != null ? customer.getFullName() : "Unknown",
+                appt.getServiceType().toString(),
+                technician != null ? technician.getFullName() : "UNASSIGNED",
+                appt.getDate(),
+                appt.getStartTime(),
+                appt.getStatus().toString()
+            };
+            tableModel.addRow(row);
+        }
+    }
+    
+    private void toggleForm() {
+        formPanel.setVisible(!formPanel.isVisible());
+        if (!formPanel.isVisible()) {
+            clearForm();
+        }
+    }
+    
+    private void hideForm() {
+        formPanel.setVisible(false);
+        clearForm();
+    }
+    
+    private void clearForm() {
+        customerCombo.setSelectedIndex(0);
+        serviceTypeCombo.setSelectedIndex(0);
+        dateField.setText(new java.text.SimpleDateFormat("yyyy-MM-dd").format(new java.util.Date()));
+        timeField.setText("10:00");
+        durationCombo.setSelectedIndex(0);
+        technicianCombo.setSelectedIndex(0);
+    }
+    
+    private void saveAppointment() {
+        try {
+            String customerSelection = (String) customerCombo.getSelectedItem();
+            String customerId = customerSelection.split(" - ")[0];
+            
+            ServiceType serviceType = ServiceType.valueOf((String) serviceTypeCombo.getSelectedItem());
+            String date = dateField.getText();
+            String time = timeField.getText();
+            int duration = Integer.parseInt((String) durationCombo.getSelectedItem());
+            
+            String techSelection = (String) technicianCombo.getSelectedItem();
+            String technicianId = null;
+            AppointmentStatus status = AppointmentStatus.PENDING;
+            
+            if (!techSelection.equals("UNASSIGNED")) {
+                technicianId = techSelection.split(" - ")[0];
+                status = AppointmentStatus.ASSIGNED;
+            }
+            
+            Appointment appointment = new Appointment();
+            appointment.setCustomerId(customerId);
+            appointment.setServiceType(serviceType);
+            appointment.setDate(date);
+            appointment.setStartTime(time);
+            appointment.setDuration(duration);
+            appointment.setTechnicianId(technicianId);
+            appointment.setStatus(status);
+            appointment.setAmount(serviceDAO.getPrice(serviceType));
+            
+            appointmentDAO.save(appointment);
+            
+            loadAppointmentData();
+            hideForm();
+            JOptionPane.showMessageDialog(this, "Appointment created successfully! ID: " + appointment.getId());
+            
+        } catch (Exception e) {
+            JOptionPane.showMessageDialog(this, "Error creating appointment: " + e.getMessage(), 
+                "Error", JOptionPane.ERROR_MESSAGE);
+        }
+    }
+    
+    private void assignTechnician(JComboBox<String> combo) {
+        int selectedRow = appointmentTable.getSelectedRow();
+        if (selectedRow >= 0) {
+            String apptId = (String) tableModel.getValueAt(selectedRow, 0);
+            String techSelection = (String) combo.getSelectedItem();
+            
+            if (techSelection != null && !techSelection.equals("Select Technician")) {
+                String techId = techSelection.split(" - ")[0];
+                
+                Appointment appt = appointmentDAO.findById(apptId);
+                if (appt != null && appt.getStatus() == AppointmentStatus.PENDING) {
+                    appt.setTechnicianId(techId);
+                    appt.setStatus(AppointmentStatus.ASSIGNED);
+                    appointmentDAO.update(appt);
+                    loadAppointmentData();
+                    JOptionPane.showMessageDialog(this, "Technician assigned successfully!");
+                }
+            }
+        } else {
+            JOptionPane.showMessageDialog(this, "Please select an appointment to assign.");
+        }
+    }
+    
+    @Override
+    protected void addEventHandlers() {
+        serviceTypeCombo.addActionListener(e -> {
+            String selected = (String) serviceTypeCombo.getSelectedItem();
+            if ("NORMAL".equals(selected)) {
+                durationCombo.setSelectedItem("1");
+            } else if ("MAJOR".equals(selected)) {
+                durationCombo.setSelectedItem("3");
+            }
+        });
+    }
+}

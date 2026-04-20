@@ -1,0 +1,94 @@
+package services;
+
+import dao.UserDAO;
+import exceptions.AuthenticationException;
+import models.User;
+
+public class AuthenticationService {
+    
+    private UserDAO userDAO;
+    private User currentUser;
+    
+    public AuthenticationService() {
+        this.userDAO = new UserDAO();
+        initializeDefaultUsers();
+    }
+    
+    private void initializeDefaultUsers() {
+        // Ensure default users exist in the system
+        java.util.List<User> users = userDAO.readAll();
+        
+        if (users.isEmpty()) {
+            // Create default users if none exist
+            createDefaultUser("M001", "manager1", "password", "MANAGER", "John Manager", "manager@apu.edu.my", "012-3456789");
+            createDefaultUser("C001", "counter1", "password", "COUNTER_STAFF", "Sarah Counter", "counter@apu.edu.my", "012-3456788");
+            createDefaultUser("C002", "counter2", "password", "COUNTER_STAFF", "Jane Counter", "counter2@apu.edu.my", "012-3456781");
+            createDefaultUser("T001", "tech1", "password", "TECHNICIAN", "Mike Technician", "tech1@apu.edu.my", "012-3456787");
+            createDefaultUser("T002", "tech2", "password", "TECHNICIAN", "Dave Technician", "tech2@apu.edu.my", "012-3456786");
+            createDefaultUser("T003", "tech3", "password", "TECHNICIAN", "Steve Technician", "tech3@apu.edu.my", "012-3456782");
+            createDefaultUser("U001", "cust1", "password", "CUSTOMER", "Alice Customer", "alice@gmail.com", "012-3456785");
+            createDefaultUser("U002", "cust2", "password", "CUSTOMER", "Bob Customer", "bob@gmail.com", "012-3456784");
+            createDefaultUser("U003", "cust3", "password", "CUSTOMER", "Charlie Customer", "charlie@gmail.com", "012-3456783");
+        }
+    }
+    
+    private void createDefaultUser(String id, String username, String password, String role, 
+                                   String fullName, String email, String phone) {
+        models.User user;
+        switch (role) {
+            case "MANAGER":
+                user = new models.Manager(id, username, password, fullName, email, phone);
+                break;
+            case "COUNTER_STAFF":
+                user = new models.CounterStaff(id, username, password, fullName, email, phone);
+                break;
+            case "TECHNICIAN":
+                user = new models.Technician(id, username, password, fullName, email, phone);
+                break;
+            default:
+                user = new models.Customer(id, username, password, fullName, email, phone);
+                break;
+        }
+        userDAO.save(user);
+    }
+    
+    public User login(String username, String password) throws AuthenticationException {
+        // Refresh user list
+        java.util.List<User> users = userDAO.readAll();
+        
+        User user = null;
+        for (User u : users) {
+            if (u.getUsername().equals(username)) {
+                user = u;
+                break;
+            }
+        }
+        
+        if (user == null) {
+            throw new AuthenticationException("User not found");
+        }
+        
+        if (!user.getPassword().equals(password)) {
+            throw new AuthenticationException("Invalid password");
+        }
+        
+        this.currentUser = user;
+        return user;
+    }
+    
+    public void logout() {
+        this.currentUser = null;
+    }
+    
+    public User getCurrentUser() {
+        return currentUser;
+    }
+    
+    public boolean isAuthenticated() {
+        return currentUser != null;
+    }
+    
+    public boolean hasRole(String role) {
+        return currentUser != null && currentUser.getRole().toString().equals(role);
+    }
+}

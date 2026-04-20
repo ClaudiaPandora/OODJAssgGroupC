@@ -1,0 +1,258 @@
+package ui.counter;
+
+import dao.UserDAO;
+import models.Customer;
+import ui.common.BasePanel;
+import utils.IDGenerator;
+import utils.ValidationUtils;
+import exceptions.ValidationException;
+
+import javax.swing.*;
+import javax.swing.table.DefaultTableModel;
+import java.awt.*;
+import java.util.List;
+
+public class CustomerManagementPanel extends BasePanel {
+    
+    private UserDAO userDAO;
+    private JTable customerTable;
+    private DefaultTableModel tableModel;
+    private JPanel formPanel;
+    private JTextField fullNameField;
+    private JTextField emailField;
+    private JTextField phoneField;
+    private JTextField usernameField;
+    
+    public CustomerManagementPanel() {
+        this.userDAO = new UserDAO();
+        setLayout(new BorderLayout());
+        setBackground(PANEL_BG);
+        setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
+        
+        initializeComponents();
+        setupLayout();
+        addEventHandlers();
+        loadCustomerData();
+    }
+    
+    @Override
+    protected void initializeComponents() {
+        String[] columns = {"ID", "Name", "Email", "Phone", "Username"};
+        tableModel = new DefaultTableModel(columns, 0) {
+            @Override
+            public boolean isCellEditable(int row, int column) {
+                return false;
+            }
+        };
+        customerTable = new JTable(tableModel);
+        customerTable.setFont(new Font("Tahoma", Font.PLAIN, 12));
+        customerTable.setRowHeight(25);
+        
+        fullNameField = new JTextField(20);
+        emailField = new JTextField(20);
+        phoneField = new JTextField(20);
+        usernameField = new JTextField(20);
+        
+        Font fieldFont = new Font("Tahoma", Font.PLAIN, 12);
+        fullNameField.setFont(fieldFont);
+        emailField.setFont(fieldFont);
+        phoneField.setFont(fieldFont);
+        usernameField.setFont(fieldFont);
+    }
+    
+    @Override
+    protected void setupLayout() {
+        JPanel mainPanel = new JPanel();
+        mainPanel.setLayout(new BoxLayout(mainPanel, BoxLayout.Y_AXIS));
+        mainPanel.setBackground(PANEL_BG);
+        
+        // Header
+        JPanel headerPanel = new JPanel(new BorderLayout());
+        headerPanel.setBackground(PANEL_BG);
+        headerPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 50));
+        
+        JLabel titleLabel = new JLabel("Customer Management");
+        titleLabel.setFont(new Font("Tahoma", Font.BOLD, 24));
+        titleLabel.setForeground(NAVY_BLUE);
+        headerPanel.add(titleLabel, BorderLayout.WEST);
+        
+        JButton addButton = new JButton("+ ADD CUSTOMER");
+        addButton.setFont(new Font("Tahoma", Font.BOLD, 11));
+        addButton.setFocusPainted(false);
+        addButton.addActionListener(e -> toggleForm());
+        headerPanel.add(addButton, BorderLayout.EAST);
+        
+        mainPanel.add(headerPanel);
+        mainPanel.add(Box.createVerticalStrut(15));
+        
+        // Form Panel
+        formPanel = createFormPanel();
+        formPanel.setVisible(false);
+        mainPanel.add(formPanel);
+        mainPanel.add(Box.createVerticalStrut(15));
+        
+        // Table
+        JPanel tablePanel = new JPanel(new BorderLayout());
+        tablePanel.setBackground(Color.WHITE);
+        tablePanel.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createLineBorder(BORDER_DARK, 2),
+            BorderFactory.createLineBorder(BORDER_LIGHT, 2)
+        ));
+        
+        JScrollPane scrollPane = new JScrollPane(customerTable);
+        tablePanel.add(scrollPane, BorderLayout.CENTER);
+        
+        JButton deleteButton = new JButton("Delete Selected");
+        deleteButton.addActionListener(e -> deleteSelectedCustomer());
+        tablePanel.add(deleteButton, BorderLayout.SOUTH);
+        
+        mainPanel.add(tablePanel);
+        
+        add(new JScrollPane(mainPanel));
+    }
+    
+    private JPanel createFormPanel() {
+        JPanel panel = new JPanel(new GridBagLayout());
+        panel.setBackground(new Color(240, 248, 255));
+        panel.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createLineBorder(BORDER_LIGHT, 2),
+            BorderFactory.createLineBorder(BORDER_DARK, 2)
+        ));
+        panel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 150));
+        
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.insets = new Insets(5, 10, 5, 10);
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+        
+        gbc.gridx = 0; gbc.gridy = 0;
+        panel.add(createLabel("Full Name:"), gbc);
+        gbc.gridx = 1;
+        panel.add(fullNameField, gbc);
+        
+        gbc.gridx = 2;
+        panel.add(createLabel("Email:"), gbc);
+        gbc.gridx = 3;
+        panel.add(emailField, gbc);
+        
+        gbc.gridx = 0; gbc.gridy = 1;
+        panel.add(createLabel("Phone:"), gbc);
+        gbc.gridx = 1;
+        panel.add(phoneField, gbc);
+        
+        gbc.gridx = 2;
+        panel.add(createLabel("Username:"), gbc);
+        gbc.gridx = 3;
+        panel.add(usernameField, gbc);
+        
+        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 10, 0));
+        buttonPanel.setBackground(new Color(240, 248, 255));
+        
+        JButton saveButton = new JButton("SAVE");
+        saveButton.setBackground(NAVY_BLUE);
+        saveButton.setForeground(Color.WHITE);
+        saveButton.addActionListener(e -> saveCustomer());
+        
+        JButton cancelButton = new JButton("CANCEL");
+        cancelButton.addActionListener(e -> hideForm());
+        
+        buttonPanel.add(saveButton);
+        buttonPanel.add(cancelButton);
+        
+        gbc.gridx = 0; gbc.gridy = 2;
+        gbc.gridwidth = 4;
+        panel.add(buttonPanel, gbc);
+        
+        return panel;
+    }
+    
+    private JLabel createLabel(String text) {
+        JLabel label = new JLabel(text);
+        label.setFont(new Font("Tahoma", Font.BOLD, 11));
+        return label;
+    }
+    
+    private void loadCustomerData() {
+        tableModel.setRowCount(0);
+        List<Customer> customers = userDAO.readCustomers();
+        
+        for (Customer customer : customers) {
+            Object[] row = {
+                customer.getId(),
+                customer.getFullName(),
+                customer.getEmail(),
+                customer.getPhone(),
+                customer.getUsername()
+            };
+            tableModel.addRow(row);
+        }
+    }
+    
+    private void toggleForm() {
+        formPanel.setVisible(!formPanel.isVisible());
+        if (!formPanel.isVisible()) {
+            clearForm();
+        }
+    }
+    
+    private void hideForm() {
+        formPanel.setVisible(false);
+        clearForm();
+    }
+    
+    private void clearForm() {
+        fullNameField.setText("");
+        emailField.setText("");
+        phoneField.setText("");
+        usernameField.setText("");
+    }
+    
+    private void saveCustomer() {
+        try {
+            String fullName = fullNameField.getText();
+            String email = emailField.getText();
+            String phone = phoneField.getText();
+            String username = usernameField.getText();
+            
+            ValidationUtils.validateUserInput(fullName, email, phone, username, "password");
+            
+            Customer customer = new Customer();
+            customer.setFullName(fullName);
+            customer.setEmail(email);
+            customer.setPhone(phone);
+            customer.setUsername(username);
+            customer.setPassword("password");
+            
+            userDAO.save(customer);
+            
+            loadCustomerData();
+            hideForm();
+            JOptionPane.showMessageDialog(this, "Customer saved successfully! ID: " + customer.getId());
+            
+        } catch (ValidationException e) {
+            JOptionPane.showMessageDialog(this, e.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+        }
+    }
+    
+    private void deleteSelectedCustomer() {
+        int selectedRow = customerTable.getSelectedRow();
+        if (selectedRow >= 0) {
+            String id = (String) tableModel.getValueAt(selectedRow, 0);
+            int confirm = JOptionPane.showConfirmDialog(this, 
+                "Are you sure you want to delete this customer?", 
+                "Confirm Delete", 
+                JOptionPane.YES_NO_OPTION);
+            
+            if (confirm == JOptionPane.YES_OPTION) {
+                userDAO.delete(id);
+                loadCustomerData();
+            }
+        } else {
+            JOptionPane.showMessageDialog(this, "Please select a customer to delete.");
+        }
+    }
+    
+    @Override
+    protected void addEventHandlers() {
+        // Event handlers added inline
+    }
+}

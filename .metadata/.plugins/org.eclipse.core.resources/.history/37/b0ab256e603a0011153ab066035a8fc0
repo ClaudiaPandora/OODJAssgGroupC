@@ -1,0 +1,54 @@
+package ui.manager;
+
+import ui.common.BaseFrame;
+import javax.swing.*;
+import java.awt.*;
+
+public class RegistrationFrame extends BaseFrame {
+    
+    private Runnable onSuccessCallback;
+    
+    public RegistrationFrame(Runnable onSuccessCallback) {
+        this.onSuccessCallback = onSuccessCallback;
+        setTitle("Register New Staff");
+        setSize(500, 560);
+        setLocationRelativeTo(null);
+        setResizable(false);
+        setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+        
+        initializeComponents();
+        setupLayout();
+        addEventHandlers();
+    }
+    
+    @Override
+    protected void initializeComponents() {
+        // This is now handled by StaffFormPanel
+    }
+    
+    @Override
+    protected void setupLayout() {
+        // Show the StaffFormPanel directly
+        StaffFormPanel formPanel = new StaffFormPanel(
+            this, 
+            "REGISTER", 
+            null, 
+            () -> {
+                if (onSuccessCallback != null) {
+                    onSuccessCallback.run();
+                }
+                dispose();
+            }
+        );
+        formPanel.setVisible(true);
+        
+        // Set empty layout since formPanel handles everything
+        setLayout(new BorderLayout());
+        add(new JPanel(), BorderLayout.CENTER);
+    }
+    
+    @Override
+    protected void addEventHandlers() {
+        // Handled by StaffFormPanel
+    }
+}

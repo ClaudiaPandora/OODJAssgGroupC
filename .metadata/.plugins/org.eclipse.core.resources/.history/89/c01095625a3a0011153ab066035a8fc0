@@ -1,0 +1,23 @@
+package ui.manager;
+
+import ui.common.BaseFrame;
+import javax.swing.*;
+
+public class RegistrationFrame extends BaseFrame {
+    
+    public RegistrationFrame() {
+        setTitle("Register New Staff");
+        setSize(500, 560);
+        setLocationRelativeTo(null);
+        setResizable(false);
+        setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+        
+        // No need to call initializeComponents and setupLayout
+        // The StaffFormPanel will handle everything
+    }
+    
+    public void showForm(Frame parent, Runnable onSuccessCallback) {
+        StaffFormPanel formPanel = new StaffFormPanel(parent, "REGISTER", null, onSuccessCallback);
+        formPanel.setVisible(true);
+    }
+}

@@ -1,0 +1,576 @@
+package ui.manager;
+
+import dao.AppointmentDAO;
+import dao.FeedbackDAO;
+import dao.UserDAO;
+import enums.AppointmentStatus;
+import enums.ServiceType;
+import models.Appointment;
+import models.Feedback;
+import models.Technician;
+import models.Customer;
+import ui.common.BasePanel;
+
+import javax.swing.*;
+import java.awt.*;
+import java.text.DecimalFormat;
+import java.util.List;
+
+public class ReportsPanel extends BasePanel {
+    
+    private AppointmentDAO appointmentDAO;
+    private UserDAO userDAO;
+    private FeedbackDAO feedbackDAO;
+    private JComboBox<String> timeRangeCombo;
+    private JComboBox<String> categoryCombo;
+    private JTextArea reportSummaryArea;
+    private JPanel chartsPanel;
+    private JPanel serviceChartPanel;
+    private JPanel revenueChartPanel;
+    private JPanel summaryBlock;
+    private JPanel mainPanel;
+    
+    public ReportsPanel() {
+        this.appointmentDAO = new AppointmentDAO();
+        this.userDAO = new UserDAO();
+        this.feedbackDAO = new FeedbackDAO();
+        
+        setLayout(new BorderLayout());
+        setBackground(PANEL_BG);
+        setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
+        
+        initializeComponents();
+        setupLayout();
+        addEventHandlers();
+    }
+    
+    @Override
+    protected void initializeComponents() {
+        String[] timeRanges = {"DAILY", "WEEKLY", "MONTHLY"};
+        timeRangeCombo = new JComboBox<>(timeRanges);
+        timeRangeCombo.setFont(new Font("Segoe UI", Font.PLAIN, 11));
+        timeRangeCombo.setPreferredSize(new Dimension(100, 26));
+        
+        String[] categories = {"ALL", "SERVICE", "REVENUE", "STAFF", "CUSTOMER", "FEEDBACK"};
+        categoryCombo = new JComboBox<>(categories);
+        categoryCombo.setFont(new Font("Segoe UI", Font.PLAIN, 11));
+        categoryCombo.setPreferredSize(new Dimension(120, 26));
+        
+        reportSummaryArea = new JTextArea();
+        reportSummaryArea.setEditable(false);
+        reportSummaryArea.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        reportSummaryArea.setBackground(new Color(240, 248, 255));
+        reportSummaryArea.setBorder(BorderFactory.createEmptyBorder(10, 12, 10, 12));
+        reportSummaryArea.setLineWrap(true);
+        reportSummaryArea.setWrapStyleWord(true);
+    }
+    
+    @Override
+    protected void setupLayout() {
+        mainPanel = new JPanel();
+        mainPanel.setLayout(new BoxLayout(mainPanel, BoxLayout.Y_AXIS));
+        mainPanel.setBackground(PANEL_BG);
+        
+        // Header with controls
+        JPanel headerPanel = createHeaderPanel();
+        mainPanel.add(headerPanel);
+        mainPanel.add(Box.createVerticalStrut(15));
+        
+        // Summary block - hidden initially
+        summaryBlock = createSummaryBlock();
+        summaryBlock.setVisible(false);
+        mainPanel.add(summaryBlock);
+        
+        // Spacer that shows/hides with summary
+        JPanel spacer = new JPanel();
+        spacer.setBackground(PANEL_BG);
+        spacer.setPreferredSize(new Dimension(0, 15));
+        spacer.setVisible(false);
+        mainPanel.add(spacer);
+        
+        // Store spacer reference for visibility control
+        summaryBlock.putClientProperty("spacer", spacer);
+        
+        // Charts panel
+        chartsPanel = new JPanel(new GridLayout(1, 2, 15, 0));
+        chartsPanel.setBackground(PANEL_BG);
+        chartsPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        
+        serviceChartPanel = createServiceChartPanel();
+        revenueChartPanel = createRevenueChartPanel();
+        
+        chartsPanel.add(serviceChartPanel);
+        chartsPanel.add(revenueChartPanel);
+        
+        mainPanel.add(chartsPanel);
+        
+        JScrollPane scrollPane = new JScrollPane(mainPanel);
+        scrollPane.setBorder(null);
+        scrollPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED);
+        scrollPane.getVerticalScrollBar().setUnitIncrement(16);
+        add(scrollPane, BorderLayout.CENTER);
+    }
+    
+    private JPanel createHeaderPanel() {
+        JPanel headerPanel = new JPanel(new BorderLayout());
+        headerPanel.setBackground(PANEL_BG);
+        headerPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 40));
+        headerPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        
+        JPanel titlePanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+        titlePanel.setBackground(PANEL_BG);
+        
+        JLabel titleLabel = new JLabel("Analytical Reports");
+        titleLabel.setFont(new Font("Segoe UI", Font.BOLD, 20));
+        titleLabel.setForeground(NAVY_BLUE);
+        titlePanel.add(titleLabel);
+        
+        headerPanel.add(titlePanel, BorderLayout.WEST);
+        
+        JPanel controlPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
+        controlPanel.setBackground(PANEL_BG);
+        
+        JLabel categoryLabel = new JLabel("Category:");
+        categoryLabel.setFont(new Font("Segoe UI", Font.PLAIN, 11));
+        controlPanel.add(categoryLabel);
+        controlPanel.add(categoryCombo);
+        
+        JLabel timeLabel = new JLabel("Range:");
+        timeLabel.setFont(new Font("Segoe UI", Font.PLAIN, 11));
+        controlPanel.add(timeLabel);
+        controlPanel.add(timeRangeCombo);
+        
+        JButton generateButton = new JButton("GENERATE REPORT");
+        generateButton.setFont(new Font("Segoe UI", Font.BOLD, 10));
+        generateButton.setBackground(NAVY_BLUE);
+        generateButton.setForeground(Color.WHITE);
+        generateButton.setFocusPainted(false);
+        generateButton.setBorderPainted(false);
+        generateButton.setOpaque(true);
+        generateButton.setContentAreaFilled(true);
+        generateButton.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        generateButton.setBorder(BorderFactory.createEmptyBorder(5, 10, 5, 10));
+        generateButton.addActionListener(e -> {
+            String category = (String) categoryCombo.getSelectedItem();
+            generateReportSummary(category);
+            updateCharts(category);
+            summaryBlock.setVisible(true);
+            JPanel spacer = (JPanel) summaryBlock.getClientProperty("spacer");
+            if (spacer != null) spacer.setVisible(true);
+            mainPanel.revalidate();
+            mainPanel.repaint();
+        });
+        controlPanel.add(generateButton);
+        
+        headerPanel.add(controlPanel, BorderLayout.EAST);
+        
+        return headerPanel;
+    }
+    
+    private JPanel createSummaryBlock() {
+        JPanel panel = new JPanel(new BorderLayout());
+        panel.setBackground(new Color(240, 248, 255));
+        panel.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createLineBorder(new Color(59, 130, 246), 1),
+            BorderFactory.createEmptyBorder(8, 12, 8, 12)
+        ));
+        panel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 90));
+        panel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        
+        JLabel titleLabel = new JLabel("Report Conclusion");
+        titleLabel.setFont(new Font("Segoe UI", Font.BOLD, 11));
+        titleLabel.setForeground(NAVY_BLUE);
+        panel.add(titleLabel, BorderLayout.NORTH);
+        panel.add(reportSummaryArea, BorderLayout.CENTER);
+        
+        return panel;
+    }
+    
+    private JPanel createServiceChartPanel() {
+
+        JPanel panel = new JPanel(new BorderLayout());
+        panel.setBackground(Color.WHITE);
+        panel.setBorder(BorderFactory.createLineBorder(Color.LIGHT_GRAY));
+        
+        JPanel header = new JPanel(new BorderLayout());
+        header.setBackground(new Color(248, 248, 248));
+        header.setBorder(BorderFactory.createEmptyBorder(6, 10, 6, 10));
+
+        JLabel title = new JLabel("1. Service Analysis");
+        title.setFont(new Font("Segoe UI", Font.BOLD, 11));
+        title.setForeground(NAVY_BLUE);
+
+        header.add(title, BorderLayout.WEST);
+
+        panel.add(header, BorderLayout.NORTH);
+
+        JPanel chartPanel = new JPanel() {
+            @Override
+            protected void paintComponent(Graphics g) {
+                super.paintComponent(g);
+                drawServiceChart(this, g);
+            }
+        };
+
+        chartPanel.setBackground(Color.WHITE);
+        chartPanel.setPreferredSize(new Dimension(300, 220));
+        chartPanel.setMinimumSize(new Dimension(300, 220));
+        chartPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 220));
+        
+        chartPanel.addComponentListener(new java.awt.event.ComponentAdapter() {
+            public void componentResized(java.awt.event.ComponentEvent e) {
+                chartPanel.repaint();
+            }
+        });
+
+        panel.add(chartPanel, BorderLayout.CENTER);
+
+        JPanel legend = new JPanel(new FlowLayout(FlowLayout.CENTER, 10, 5));
+        legend.setBackground(Color.WHITE);
+        legend.add(createLegendItem("Normal", NAVY_BLUE));
+        legend.add(createLegendItem("Major", YELLOW));
+
+        panel.add(legend, BorderLayout.SOUTH);
+
+        return panel;
+    }
+
+    private void drawServiceChart(JComponent c, Graphics g) {
+
+        Graphics2D g2 = (Graphics2D) g;
+        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+
+        List<Appointment> appts = appointmentDAO.readAll();
+
+        long normal = appts.stream().filter(a -> a.getServiceType() == ServiceType.NORMAL).count();
+        long major = appts.stream().filter(a -> a.getServiceType() == ServiceType.MAJOR).count();
+
+        long total = normal + major;
+
+        int w = c.getWidth();
+        int h = c.getHeight();
+
+        int padding = 40;
+
+        int size = Math.min(w, h) / 3;
+        if (size <= 0) return;
+
+        int x = (w - size) / 2;
+        int y = (h - size) / 2;
+
+        if (total == 0) {
+            g2.setColor(Color.LIGHT_GRAY);
+            g2.fillOval(x, y, size, size);
+            return;
+        }
+
+        int angleNormal = (int) (360.0 * normal / total);
+
+        g2.setColor(NAVY_BLUE);
+        g2.fillArc(x, y, size, size, 0, angleNormal);
+
+        g2.setColor(YELLOW);
+        g2.fillArc(x, y, size, size, angleNormal, 360 - angleNormal);
+
+        // Optional center text (cleaner UI)
+        g2.setColor(Color.BLACK);
+        g2.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        String text = String.valueOf(total);
+
+        FontMetrics fm = g2.getFontMetrics();
+        g2.drawString(text, (w - fm.stringWidth(text)) / 2, h / 2);
+    }    
+    
+    private JPanel createRevenueChartPanel() {
+
+        JPanel panel = new JPanel(new BorderLayout());
+        panel.setBackground(Color.WHITE);
+        panel.setBorder(BorderFactory.createLineBorder(Color.LIGHT_GRAY));
+
+        JPanel header = new JPanel(new BorderLayout());
+        header.setBackground(new Color(248, 248, 248));
+        header.setBorder(BorderFactory.createEmptyBorder(6, 10, 6, 10));
+
+        JLabel title = new JLabel("2. Revenue Analysis");
+        title.setFont(new Font("Segoe UI", Font.BOLD, 11));
+        title.setForeground(NAVY_BLUE);
+
+        header.add(title, BorderLayout.WEST);
+        panel.add(header, BorderLayout.NORTH);
+
+        JPanel statsPanel = new JPanel();
+        statsPanel.setLayout(new BoxLayout(statsPanel, BoxLayout.Y_AXIS));
+        statsPanel.setBackground(Color.WHITE);
+
+        updateRevenueStats(statsPanel, "ALL");
+
+        panel.add(statsPanel, BorderLayout.CENTER);
+
+        return panel;
+    }
+    
+    private void drawRevenueBarChart(JComponent c, Graphics g, double normalRevenue, double majorRevenue) {
+        Graphics2D g2 = (Graphics2D) g;
+        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        
+        int width = c.getWidth();
+        int height = c.getHeight();
+        
+        if (width <= 0 || height <= 0) return;
+        
+        int bottomMargin = 25;
+        int topMargin = 15;
+        int bottom = height - bottomMargin;
+        int top = topMargin;
+        int usableHeight = bottom - top;
+        
+        double max = Math.max(normalRevenue, majorRevenue);
+        if (max == 0) max = 1;
+        
+        int barWidth = 45;
+        
+        int normalHeight = (int) (usableHeight * (normalRevenue / max));
+        int majorHeight = (int) (usableHeight * (majorRevenue / max));
+        
+        // Ensure minimum height for visibility
+        if (normalHeight < 2 && normalRevenue > 0) normalHeight = 2;
+        if (majorHeight < 2 && majorRevenue > 0) majorHeight = 2;
+        
+        int x1 = width / 3;
+        int x2 = 2 * width / 3;
+        
+        // Draw axes
+        g2.setColor(Color.LIGHT_GRAY);
+        g2.drawLine(x1 - barWidth - 10, bottom, x2 + barWidth + 10, bottom);
+        
+        // NORMAL bar
+        g2.setColor(NAVY_BLUE);
+        g2.fillRect(x1 - barWidth / 2, bottom - normalHeight, barWidth, normalHeight);
+        g2.setColor(Color.BLACK);
+        g2.drawRect(x1 - barWidth / 2, bottom - normalHeight, barWidth, normalHeight);
+        
+        // MAJOR bar
+        g2.setColor(YELLOW);
+        g2.fillRect(x2 - barWidth / 2, bottom - majorHeight, barWidth, majorHeight);
+        g2.setColor(Color.BLACK);
+        g2.drawRect(x2 - barWidth / 2, bottom - majorHeight, barWidth, majorHeight);
+        
+        // Labels
+        g2.setColor(Color.BLACK);
+        g2.setFont(new Font("Segoe UI", Font.PLAIN, 10));
+        FontMetrics fm = g2.getFontMetrics();
+        
+        String normalLabel = "Normal";
+        String majorLabel = "Major";
+        
+        int normalLabelX = x1 - fm.stringWidth(normalLabel) / 2;
+        int majorLabelX = x2 - fm.stringWidth(majorLabel) / 2;
+        
+        g2.drawString(normalLabel, normalLabelX, bottom + 15);
+        g2.drawString(majorLabel, majorLabelX, bottom + 15);
+        
+        // Draw values on top of bars
+        DecimalFormat df = new DecimalFormat("RM #,###");
+        String normalVal = df.format(normalRevenue);
+        String majorVal = df.format(majorRevenue);
+        
+        g2.setFont(new Font("Segoe UI", Font.PLAIN, 9));
+        fm = g2.getFontMetrics();
+        
+        if (normalHeight > 20) {
+            g2.setColor(Color.WHITE);
+            g2.drawString(normalVal, x1 - fm.stringWidth(normalVal) / 2, bottom - normalHeight + 15);
+        } else if (normalRevenue > 0) {
+            g2.setColor(Color.BLACK);
+            g2.drawString(normalVal, x1 - fm.stringWidth(normalVal) / 2, bottom - normalHeight - 5);
+        }
+        
+        if (majorHeight > 20) {
+            g2.setColor(Color.BLACK);
+            g2.drawString(majorVal, x2 - fm.stringWidth(majorVal) / 2, bottom - majorHeight + 15);
+        } else if (majorRevenue > 0) {
+            g2.setColor(Color.BLACK);
+            g2.drawString(majorVal, x2 - fm.stringWidth(majorVal) / 2, bottom - majorHeight - 5);
+        }
+    }
+
+    private void updateRevenueStats(JPanel statsPanel, String category) {
+        statsPanel.removeAll();
+        statsPanel.setLayout(new BoxLayout(statsPanel, BoxLayout.Y_AXIS));
+        statsPanel.setBackground(Color.WHITE);
+        statsPanel.setBorder(BorderFactory.createEmptyBorder(12, 15, 12, 15));
+        
+        List<Appointment> appointments = appointmentDAO.readAll();
+        DecimalFormat df = new DecimalFormat("#,###.00");
+        
+        if (category.equals("ALL") || category.equals("REVENUE")) {
+            double totalRevenue = appointments.stream()
+                .filter(a -> a.getStatus() == AppointmentStatus.PAID)
+                .mapToDouble(a -> a.getAmount() > 0 ? a.getAmount() : 
+                    (a.getServiceType() == ServiceType.NORMAL ? 100 : 300))
+                .sum();
+            
+            double normalRevenue = appointments.stream()
+                .filter(a -> a.getStatus() == AppointmentStatus.PAID && a.getServiceType() == ServiceType.NORMAL)
+                .mapToDouble(a -> a.getAmount() > 0 ? a.getAmount() : 100)
+                .sum();
+            
+            double majorRevenue = appointments.stream()
+                .filter(a -> a.getStatus() == AppointmentStatus.PAID && a.getServiceType() == ServiceType.MAJOR)
+                .mapToDouble(a -> a.getAmount() > 0 ? a.getAmount() : 300)
+                .sum();
+            
+            JPanel totalPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+            totalPanel.setBackground(Color.WHITE);
+            JLabel totalLabel = new JLabel("Total Income: RM " + df.format(totalRevenue));
+            totalLabel.setFont(new Font("Segoe UI", Font.BOLD, 13));
+            totalLabel.setForeground(NAVY_BLUE);
+            totalPanel.add(totalLabel);
+            statsPanel.add(totalPanel);
+            statsPanel.add(Box.createVerticalStrut(10));
+            
+            // Bar chart with fixed preferred size
+            JPanel barChartPanel = new JPanel() {
+                @Override
+                protected void paintComponent(Graphics g) {
+                    super.paintComponent(g);
+                    drawRevenueBarChart(this, g, normalRevenue, majorRevenue);
+                }
+            };
+            barChartPanel.setBackground(Color.WHITE);
+            barChartPanel.setPreferredSize(new Dimension(300, 150));
+            barChartPanel.setMinimumSize(new Dimension(200, 120));
+            barChartPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 150));
+            statsPanel.add(barChartPanel);
+            
+            statsPanel.add(Box.createVerticalStrut(5));
+            
+            JPanel legendPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 15, 0));
+            legendPanel.setBackground(Color.WHITE);
+            legendPanel.add(createLegendItem("Normal: RM " + df.format(normalRevenue), NAVY_BLUE));
+            legendPanel.add(createLegendItem("Major: RM " + df.format(majorRevenue), YELLOW));
+            statsPanel.add(legendPanel);
+        } else {
+            JPanel emptyPanel = new JPanel(new GridBagLayout());
+            emptyPanel.setBackground(Color.WHITE);
+            JLabel noDataLabel = new JLabel("Select REVENUE category");
+            noDataLabel.setFont(new Font("Segoe UI", Font.ITALIC, 11));
+            noDataLabel.setForeground(new Color(150, 150, 150));
+            emptyPanel.add(noDataLabel);
+            statsPanel.add(emptyPanel);
+        }
+        
+        statsPanel.revalidate();
+        statsPanel.repaint();
+    }
+    
+    private JPanel createLegendItem(String text, Color color) {
+        JPanel panel = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 0));
+        panel.setBackground(Color.WHITE);
+        
+        JPanel colorBox = new JPanel();
+        colorBox.setBackground(color);
+        colorBox.setPreferredSize(new Dimension(10, 10));
+        colorBox.setBorder(BorderFactory.createLineBorder(new Color(180, 180, 180), 1));
+        panel.add(colorBox);
+        
+        JLabel label = new JLabel(text);
+        label.setFont(new Font("Segoe UI", Font.PLAIN, 9));
+        panel.add(label);
+        
+        return panel;
+    }
+    
+    private void updateCharts(String category) {
+        // Update revenue stats
+        for (Component c : revenueChartPanel.getComponents()) {
+            if (c instanceof JPanel && !(c instanceof javax.swing.text.JTextComponent)) {
+                JPanel panel = (JPanel) c;
+                if (panel.getLayout() instanceof BoxLayout && panel != revenueChartPanel.getComponent(0)) {
+                    updateRevenueStats(panel, category);
+                }
+            }
+        }
+        
+        // Repaint service chart
+        for (Component c : serviceChartPanel.getComponents()) {
+            if (c instanceof JPanel && !(c instanceof javax.swing.text.JTextComponent)) {
+                c.repaint();
+            }
+        }
+    }
+    
+    private void generateReportSummary(String category) {
+        List<Appointment> appointments = appointmentDAO.readAll();
+        List<Customer> customers = userDAO.readCustomers();
+        List<Technician> technicians = userDAO.readTechnicians();
+        List<Feedback> feedbacks = feedbackDAO.readAll();
+        
+        StringBuilder summary = new StringBuilder();
+        DecimalFormat df = new DecimalFormat("#,###.00");
+        
+        long total = appointments.size();
+        long normal = appointments.stream().filter(a -> a.getServiceType() == ServiceType.NORMAL).count();
+        long major = appointments.stream().filter(a -> a.getServiceType() == ServiceType.MAJOR).count();
+        long completed = appointments.stream().filter(a -> a.getStatus() == AppointmentStatus.COMPLETED || a.getStatus() == AppointmentStatus.PAID).count();
+        
+        double revenue = appointments.stream()
+            .filter(a -> a.getStatus() == AppointmentStatus.PAID)
+            .mapToDouble(a -> a.getAmount() > 0 ? a.getAmount() : 
+                (a.getServiceType() == ServiceType.NORMAL ? 100 : 300))
+            .sum();
+        
+        double normalRevenue = appointments.stream()
+            .filter(a -> a.getStatus() == AppointmentStatus.PAID && a.getServiceType() == ServiceType.NORMAL)
+            .mapToDouble(a -> a.getAmount() > 0 ? a.getAmount() : 100)
+            .sum();
+        
+        double majorRevenue = appointments.stream()
+            .filter(a -> a.getStatus() == AppointmentStatus.PAID && a.getServiceType() == ServiceType.MAJOR)
+            .mapToDouble(a -> a.getAmount() > 0 ? a.getAmount() : 300)
+            .sum();
+        
+        long returning = customers.stream().filter(c -> appointments.stream()
+            .filter(a -> a.getCustomerId().equals(c.getId())).count() > 1).count();
+        
+        double avgRating = feedbacks.isEmpty() ? 0 : 
+            feedbacks.stream().mapToInt(Feedback::getRating).average().orElse(0);
+        
+        if (category.equals("ALL")) {
+            summary.append("Service: ").append(total).append(" total (").append(normal).append(" Normal, ").append(major).append(" Major). ");
+            summary.append("Revenue: RM ").append(df.format(revenue)).append(" (Normal: RM ").append(df.format(normalRevenue))
+                   .append(", Major: RM ").append(df.format(majorRevenue)).append("). ");
+            summary.append("Customers: ").append(customers.size()).append(" (").append(returning).append(" returning). ");
+            summary.append("Staff: ").append(completed).append(" jobs completed. ");
+            summary.append("Feedback: ").append(String.format("%.1f", avgRating)).append(" stars from ").append(feedbacks.size()).append(" reviews.");
+        } else if (category.equals("SERVICE")) {
+            summary.append("Total: ").append(total).append(" services. Normal: ").append(normal)
+                   .append(" (").append(String.format("%.1f", total > 0 ? 100.0 * normal / total : 0)).append("%). ")
+                   .append("Major: ").append(major).append(" (").append(String.format("%.1f", total > 0 ? 100.0 * major / total : 0)).append("%).");
+        } else if (category.equals("REVENUE")) {
+            summary.append("Total Revenue: RM ").append(df.format(revenue)).append(". ")
+                   .append("Normal: RM ").append(df.format(normalRevenue)).append(", ")
+                   .append("Major: RM ").append(df.format(majorRevenue)).append(".");
+        } else if (category.equals("CUSTOMER")) {
+            summary.append("Total Customers: ").append(customers.size()).append(". ")
+                   .append("Returning: ").append(returning).append(" (").append(String.format("%.1f", customers.size() > 0 ? 100.0 * returning / customers.size() : 0)).append("%).");
+        } else if (category.equals("STAFF")) {
+            summary.append("Technicians: ").append(technicians.size()).append(". Completed jobs: ").append(completed).append(".");
+            for (Technician t : technicians) {
+                long tc = appointments.stream().filter(a -> t.getId().equals(a.getTechnicianId()) && 
+                    (a.getStatus() == AppointmentStatus.COMPLETED || a.getStatus() == AppointmentStatus.PAID)).count();
+                if (tc > 0) summary.append(" ").append(t.getFullName()).append(": ").append(tc).append(".");
+            }
+        } else if (category.equals("FEEDBACK")) {
+            summary.append("Average Rating: ").append(String.format("%.1f", avgRating)).append(" stars. ")
+                   .append("Total Reviews: ").append(feedbacks.size()).append(".");
+        }
+        
+        reportSummaryArea.setText(summary.toString());
+        reportSummaryArea.setCaretPosition(0);
+    }
+    
+    @Override
+    protected void addEventHandlers() {
+    }
+}

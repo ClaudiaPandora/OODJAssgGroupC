@@ -1,0 +1,332 @@
+package ui.dashboard;
+
+import dao.AppointmentDAO;
+import dao.UserDAO;
+import enums.AppointmentStatus;
+import enums.ServiceType;
+import models.Appointment;
+import models.Technician;
+import models.User;
+import ui.common.BasePanel;
+import utils.DateUtils;
+
+import javax.swing.*;
+import java.awt.*;
+import java.util.ArrayList;
+import java.util.List;
+
+public class OverviewPanel extends BasePanel {
+    
+    private User currentUser;
+    private AppointmentDAO appointmentDAO;
+    private UserDAO userDAO;
+    
+    public OverviewPanel(User user) {
+        this.currentUser = user;
+        this.appointmentDAO = new AppointmentDAO();
+        this.userDAO = new UserDAO();
+        setBackground(PANEL_BG);
+        
+        // Initialize and setup manually since BasePanel doesn't do it automatically
+        initializeComponents();
+        setupLayout();
+        addEventHandlers();
+    }
+    
+    @Override
+    protected void initializeComponents() {
+        // Components created in setupLayout
+    }
+    
+    @Override
+    protected void setupLayout() {
+        setLayout(new BorderLayout());
+        setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
+        
+        JPanel mainPanel = new JPanel();
+        mainPanel.setLayout(new BoxLayout(mainPanel, BoxLayout.Y_AXIS));
+        mainPanel.setBackground(PANEL_BG);
+        
+        // Header
+        JPanel headerPanel = createHeaderPanel();
+        mainPanel.add(headerPanel);
+        mainPanel.add(Box.createVerticalStrut(20));
+        
+        // Stats Cards
+        JPanel statsPanel = createStatsPanel();
+        mainPanel.add(statsPanel);
+        mainPanel.add(Box.createVerticalStrut(20));
+        
+        // Main content
+        JPanel contentRow = new JPanel(new GridLayout(1, 2, 20, 0));
+        contentRow.setBackground(PANEL_BG);
+        
+        contentRow.add(createActivitiesPanel());
+        contentRow.add(createRightPanel());
+        
+        mainPanel.add(contentRow);
+        
+        JScrollPane scrollPane = new JScrollPane(mainPanel);
+        scrollPane.setBorder(null);
+        scrollPane.getVerticalScrollBar().setUnitIncrement(16);
+        add(scrollPane, BorderLayout.CENTER);
+    }
+    
+    private JPanel createHeaderPanel() {
+        JPanel headerPanel = new JPanel(new BorderLayout());
+        headerPanel.setBackground(PANEL_BG);
+        headerPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 60));
+        headerPanel.setPreferredSize(new Dimension(0, 60));
+        
+        JPanel titlePanel = new JPanel();
+        titlePanel.setLayout(new BoxLayout(titlePanel, BoxLayout.Y_AXIS));
+        titlePanel.setBackground(PANEL_BG);
+        
+        JLabel titleLabel = new JLabel("System Overview");
+        titleLabel.setFont(new Font("Segoe UI", Font.BOLD, 24));
+        titleLabel.setForeground(NAVY_BLUE);
+        titlePanel.add(titleLabel);
+        
+        JPanel statusPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 5));
+        statusPanel.setBackground(PANEL_BG);
+        
+        JLabel liveLabel = new JLabel("LIVE DASHBOARD");
+        liveLabel.setFont(new Font("Segoe UI", Font.BOLD, 10));
+        liveLabel.setForeground(new Color(21, 128, 61));
+        liveLabel.setBackground(new Color(220, 252, 231));
+        liveLabel.setOpaque(true);
+        liveLabel.setBorder(BorderFactory.createEmptyBorder(4, 10, 4, 10));
+        statusPanel.add(liveLabel);
+        
+        JLabel dateLabel = new JLabel(DateUtils.getCurrentDate());
+        dateLabel.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        dateLabel.setForeground(new Color(120, 120, 120));
+        statusPanel.add(dateLabel);
+        
+        titlePanel.add(statusPanel);
+        headerPanel.add(titlePanel, BorderLayout.WEST);
+        
+        JLabel operationalLabel = new JLabel("OPERATIONAL STATUS");
+        operationalLabel.setFont(new Font("Segoe UI", Font.BOLD, 10));
+        operationalLabel.setForeground(Color.WHITE);
+        operationalLabel.setBackground(NAVY_BLUE);
+        operationalLabel.setOpaque(true);
+        operationalLabel.setBorder(BorderFactory.createEmptyBorder(8, 15, 8, 15));
+        headerPanel.add(operationalLabel, BorderLayout.EAST);
+        
+        return headerPanel;
+    }
+    
+    private JPanel createStatsPanel() {
+        JPanel panel = new JPanel(new GridLayout(1, 4, 15, 0));
+        panel.setBackground(PANEL_BG);
+        
+        List<Appointment> allAppointments = appointmentDAO.readAll();
+        String today = DateUtils.getCurrentDate();
+        
+        List<Appointment> todayAppointments = new ArrayList<>();
+        for (Appointment a : allAppointments) {
+            if (a.getDate() != null && a.getDate().equals(today)) {
+                todayAppointments.add(a);
+            }
+        }
+        
+        int normalCount = 0, majorCount = 0, ongoingCount = 0, completedCount = 0;
+        double revenue = 0;
+        
+        for (Appointment a : todayAppointments) {
+            if (a.getServiceType() == ServiceType.NORMAL) normalCount++;
+            else if (a.getServiceType() == ServiceType.MAJOR) majorCount++;
+            if (a.getStatus() == AppointmentStatus.ASSIGNED) ongoingCount++;
+            if (a.getStatus() == AppointmentStatus.COMPLETED || a.getStatus() == AppointmentStatus.PAID) completedCount++;
+            if (a.getStatus() == AppointmentStatus.PAID) {
+                revenue += a.getAmount() > 0 ? a.getAmount() : (a.getServiceType() == ServiceType.NORMAL ? 100 : 300);
+            }
+        }
+        
+        panel.add(createStatCard("Appointments Today", String.valueOf(todayAppointments.size()), 
+            normalCount + " Normal • " + majorCount + " Major", new Color(59, 130, 246)));
+        panel.add(createStatCard("Ongoing Services", String.valueOf(ongoingCount), null, new Color(234, 88, 12)));
+        panel.add(createStatCard("Completed Today", String.valueOf(completedCount), null, new Color(34, 197, 94)));
+        panel.add(createStatCard("Revenue Today", String.format("RM %.2f", revenue), null, new Color(168, 85, 247)));
+        
+        return panel;
+    }
+    
+    private JPanel createStatCard(String label, String value, String subValue, Color accentColor) {
+        JPanel card = new JPanel(new BorderLayout());
+        card.setBackground(Color.WHITE);
+        card.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createLineBorder(BORDER_LIGHT, 2),
+            BorderFactory.createLineBorder(BORDER_DARK, 2)
+        ));
+        
+        JPanel content = new JPanel();
+        content.setLayout(new BoxLayout(content, BoxLayout.Y_AXIS));
+        content.setBackground(Color.WHITE);
+        content.setBorder(BorderFactory.createEmptyBorder(15, 15, 15, 15));
+        
+        JLabel labelText = new JLabel(label);
+        labelText.setFont(new Font("Segoe UI", Font.BOLD, 11));
+        labelText.setForeground(new Color(100, 100, 100));
+        content.add(labelText);
+        content.add(Box.createVerticalStrut(5));
+        
+        JLabel valueText = new JLabel(value);
+        valueText.setFont(new Font("Segoe UI", Font.BOLD, 28));
+        valueText.setForeground(Color.BLACK);
+        content.add(valueText);
+        
+        if (subValue != null) {
+            JLabel subText = new JLabel(subValue);
+            subText.setFont(new Font("Segoe UI", Font.PLAIN, 11));
+            subText.setForeground(new Color(120, 120, 120));
+            content.add(subText);
+        }
+        
+        card.add(content, BorderLayout.CENTER);
+        
+        JPanel accentBar = new JPanel();
+        accentBar.setBackground(accentColor);
+        accentBar.setPreferredSize(new Dimension(5, 0));
+        card.add(accentBar, BorderLayout.WEST);
+        
+        return card;
+    }
+    
+    private JPanel createActivitiesPanel() {
+        JPanel panel = new JPanel();
+        panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
+        panel.setBackground(Color.WHITE);
+        panel.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createLineBorder(BORDER_LIGHT, 2),
+            BorderFactory.createLineBorder(BORDER_DARK, 2)
+        ));
+        
+        JPanel headerPanel = new JPanel(new BorderLayout());
+        headerPanel.setBackground(Color.WHITE);
+        headerPanel.setBorder(BorderFactory.createEmptyBorder(15, 15, 10, 15));
+        headerPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 45));
+        
+        JLabel titleLabel = new JLabel("Recent Activities");
+        titleLabel.setFont(new Font("Segoe UI", Font.BOLD, 14));
+        titleLabel.setForeground(NAVY_BLUE);
+        headerPanel.add(titleLabel, BorderLayout.WEST);
+        
+        JLabel liveLabel = new JLabel("LIVE UPDATES");
+        liveLabel.setFont(new Font("Segoe UI", Font.BOLD, 9));
+        liveLabel.setForeground(new Color(150, 150, 150));
+        headerPanel.add(liveLabel, BorderLayout.EAST);
+        
+        panel.add(headerPanel);
+        panel.add(new JSeparator());
+        
+        List<Appointment> appointments = appointmentDAO.readAll();
+        int count = 0;
+        for (int i = appointments.size() - 1; i >= 0 && count < 5; i--, count++) {
+            Appointment a = appointments.get(i);
+            User customer = userDAO.findById(a.getCustomerId());
+            
+            JPanel item = new JPanel(new BorderLayout());
+            item.setBackground(Color.WHITE);
+            item.setBorder(BorderFactory.createEmptyBorder(10, 15, 10, 15));
+            
+            JPanel leftPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 0));
+            leftPanel.setBackground(Color.WHITE);
+            
+            JLabel dotLabel = new JLabel("●");
+            dotLabel.setFont(new Font("Segoe UI", Font.PLAIN, 10));
+            dotLabel.setForeground(new Color(59, 130, 246));
+            leftPanel.add(dotLabel);
+            
+            JLabel textLabel = new JLabel("Appointment #" + a.getId() + " - " + 
+                (customer != null ? customer.getFullName() : "Customer"));
+            textLabel.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+            leftPanel.add(textLabel);
+            
+            item.add(leftPanel, BorderLayout.WEST);
+            
+            JLabel timeLabel = new JLabel(a.getStartTime());
+            timeLabel.setFont(new Font("Segoe UI", Font.PLAIN, 10));
+            timeLabel.setForeground(new Color(150, 150, 150));
+            item.add(timeLabel, BorderLayout.EAST);
+            
+            panel.add(item);
+            if (count < 4) panel.add(new JSeparator());
+        }
+        
+        return panel;
+    }
+    
+    private JPanel createRightPanel() {
+        JPanel panel = new JPanel();
+        panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
+        panel.setBackground(PANEL_BG);
+        
+        // Technician Status
+        JPanel techPanel = new JPanel();
+        techPanel.setLayout(new BoxLayout(techPanel, BoxLayout.Y_AXIS));
+        techPanel.setBackground(Color.WHITE);
+        techPanel.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createLineBorder(BORDER_LIGHT, 2),
+            BorderFactory.createLineBorder(BORDER_DARK, 2)
+        ));
+        
+        JPanel techHeader = new JPanel(new BorderLayout());
+        techHeader.setBackground(Color.WHITE);
+        techHeader.setBorder(BorderFactory.createEmptyBorder(15, 15, 10, 15));
+        
+        JLabel techTitle = new JLabel("Technician Status");
+        techTitle.setFont(new Font("Segoe UI", Font.BOLD, 13));
+        techTitle.setForeground(NAVY_BLUE);
+        techHeader.add(techTitle, BorderLayout.WEST);
+        
+        List<Technician> techs = userDAO.readTechnicians();
+        JLabel countLabel = new JLabel(techs.size() + " Active");
+        countLabel.setFont(new Font("Segoe UI", Font.BOLD, 10));
+        countLabel.setForeground(new Color(150, 150, 150));
+        techHeader.add(countLabel, BorderLayout.EAST);
+        
+        techPanel.add(techHeader);
+        techPanel.add(new JSeparator());
+        
+        List<Appointment> appointments = appointmentDAO.readAll();
+        String today = DateUtils.getCurrentDate();
+        
+        for (Technician tech : techs) {
+            boolean isBusy = false;
+            for (Appointment a : appointments) {
+                if (tech.getId().equals(a.getTechnicianId()) && 
+                    a.getStatus() == AppointmentStatus.ASSIGNED && 
+                    today.equals(a.getDate())) {
+                    isBusy = true;
+                    break;
+                }
+            }
+            
+            JPanel techItem = new JPanel(new BorderLayout());
+            techItem.setBackground(Color.WHITE);
+            techItem.setBorder(BorderFactory.createEmptyBorder(10, 15, 10, 15));
+            
+            JLabel nameLabel = new JLabel(tech.getFullName());
+            nameLabel.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+            techItem.add(nameLabel, BorderLayout.WEST);
+            
+            JLabel statusLabel = new JLabel(isBusy ? "BUSY" : "AVAILABLE");
+            statusLabel.setFont(new Font("Segoe UI", Font.BOLD, 9));
+            statusLabel.setForeground(isBusy ? new Color(234, 88, 12) : new Color(34, 197, 94));
+            techItem.add(statusLabel, BorderLayout.EAST);
+            
+            techPanel.add(techItem);
+            techPanel.add(new JSeparator());
+        }
+        
+        panel.add(techPanel);
+        
+        return panel;
+    }
+    
+    @Override
+    protected void addEventHandlers() {
+    }
+}
