@@ -1,10 +1,11 @@
-CM001|APT001|C001|T001||The service was outstanding! Will definitely recommend to friends.
-CM002|APT002|C002|T002||Good job, but please improve communication next time.
-CM003|APT003|C003|T003||Very impressed with the quality of work.
-CM004|APT004|C004|T001||The technician explained everything clearly before starting the work.
-CM005|APT005|C005|T002||Fast service! My car was ready earlier than expected.
-CM006|APT006|C006|T003||Professional and courteous staff. Highly recommended!
-CM007|APT007|C007|T001||Slight delay but overall good service.
-CM008|APT008|C008||CS001|The counter staff was very helpful with my booking.
-CM009|APT009|C009||CS002|Easy online booking process. Will use again.
-CM010|APT010|C010||CS001|Friendly staff at the counter. Made payment easy.
+C0001|A0001|U001|T001||The service was outstanding! Will definitely recommend to friends.|5
+C0002|A0002|U001|T001||Good job, but please improve communication next time.|4
+C0003|A0003|U002|T002||Very impressed with the quality of work.|5
+C0004|A0004|U003|T002||The technician explained everything clearly before starting the work.|5
+C0005|A0005|U001|T001||Fast service! My car was ready earlier than expected.|4
+C0006|A0006|U002|T003||Professional and courteous staff. Highly recommended!|5
+C0007|A0007|U003|T001||Slight delay but overall good service.|3
+C0008|A0008|U001||C001|The counter staff was very helpful with my booking.|5
+C0009|A0009|U002||C002|Easy online booking process. Will use again.|4
+C0010|A0010|U003||C001|Friendly staff at the counter. Made payment easy.|4
+C0011|A0008|U001||C001|Bad attitude this staff|1

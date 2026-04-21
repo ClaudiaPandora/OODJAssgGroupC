@@ -3,52 +3,47 @@ package dao;
 import models.Comment;
 import utils.FileUtils;
 import utils.IDGenerator;
-import java.util.*;
+
+import java.util.ArrayList;
+import java.util.List;
 
 public class CommentDAO implements FileDAO<Comment> {
-    
+
     private static final String FILE_NAME = "src/data/comments.txt";
-    
+
     public CommentDAO() {
         ensureFileExists();
     }
-    
+
     private void ensureFileExists() {
         FileUtils.readLines(FILE_NAME);
     }
-    
+
     @Override
     public List<Comment> readAll() {
         List<String> lines = FileUtils.readLines(FILE_NAME);
         List<Comment> comments = new ArrayList<>();
-        
+
         for (String line : lines) {
             if (line != null && !line.trim().isEmpty()) {
-                String[] parts = line.split("\\|");
-                if (parts.length >= 6) {
-                    Comment c = new Comment();
-                    c.setId(parts[0].trim());
-                    c.setAppointmentId(parts[1].trim());
-                    c.setCustomerId(parts[2].trim());
-                    c.setTechnicianId(parts[3].trim().isEmpty() ? null : parts[3].trim());
-                    c.setCounterStaffId(parts[4].trim().isEmpty() ? null : parts[4].trim());
-                    c.setContent(parts[5].trim());
+                Comment c = Comment.fromString(line);
+                if (c != null) {
                     comments.add(c);
                 }
             }
         }
-        
+
         return comments;
     }
-    
+
     @Override
     public Comment findById(String id) {
         return readAll().stream()
-            .filter(c -> c.getId().equals(id))
-            .findFirst()
-            .orElse(null);
+                .filter(c -> c.getId().equals(id))
+                .findFirst()
+                .orElse(null);
     }
-    
+
     @Override
     public boolean save(Comment comment) {
         List<Comment> all = readAll();
@@ -58,7 +53,7 @@ public class CommentDAO implements FileDAO<Comment> {
         all.add(comment);
         return saveAll(all);
     }
-    
+
     @Override
     public boolean update(Comment comment) {
         List<Comment> all = readAll();
@@ -70,7 +65,7 @@ public class CommentDAO implements FileDAO<Comment> {
         }
         return false;
     }
-    
+
     @Override
     public boolean delete(String id) {
         List<Comment> all = readAll();
@@ -80,20 +75,40 @@ public class CommentDAO implements FileDAO<Comment> {
         }
         return false;
     }
-    
+
     private boolean saveAll(List<Comment> comments) {
         List<String> lines = new ArrayList<>();
         for (Comment c : comments) {
-            lines.add(c.getId() + "|" + c.getAppointmentId() + "|" + c.getCustomerId() + "|" +
-                     (c.getTechnicianId() != null ? c.getTechnicianId() : "") + "|" +
-                     (c.getCounterStaffId() != null ? c.getCounterStaffId() : "") + "|" +
-                     c.getContent());
+            lines.add(c.getId() + "|" + c.getAppointmentId() + "|" + c.getCustomerId() + "|"
+                    + (c.getTechnicianId() != null ? c.getTechnicianId() : "") + "|"
+                    + (c.getCounterStaffId() != null ? c.getCounterStaffId() : "") + "|"
+                    + c.getContent() + "|" + c.getRating());
         }
         return FileUtils.writeLines(FILE_NAME, lines);
     }
-    
+
     @Override
     public String getFileName() {
         return FILE_NAME;
+    }
+
+    public List<Comment> findByCustomerId(String customerId) {
+        List<Comment> result = new ArrayList<>();
+        for (Comment c : readAll()) {
+            if (customerId.equals(c.getCustomerId())) {
+                result.add(c);
+            }
+        }
+        return result;
+    }
+
+    public List<Comment> findByAppointmentId(String appointmentId) {
+        List<Comment> result = new ArrayList<>();
+        for (Comment c : readAll()) {
+            if (appointmentId.equals(c.getAppointmentId())) {
+                result.add(c);
+            }
+        }
+        return result;
     }
 }
