@@ -8,6 +8,9 @@ import ui.common.HeaderPanel;
 import ui.common.NavigationPanel;
 import ui.manager.*;
 
+import ui.technician.MyJobsPanel;
+import ui.technician.TechnicianOverviewPanel;
+
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.WindowAdapter;
@@ -111,30 +114,45 @@ public class DashboardFrame extends BaseFrame {
     }
     
     private void setupContentPanels() {
-        // Remove any existing components
+
         contentPanel.removeAll();
-        
-        // Common panels
-        OverviewPanel overviewPanel = new OverviewPanel(currentUser);
+
         ProfilePanel profilePanel = new ProfilePanel(currentUser);
-        
-        contentPanel.add(overviewPanel, "OVERVIEW");
         contentPanel.add(profilePanel, "PROFILE");
-        
-        // Role-specific panels
-        if (currentUser.getRole() == UserRole.MANAGER) {
+
+        // Technician
+        if (currentUser.getRole() == UserRole.TECHNICIAN) {
+            contentPanel.add(new TechnicianOverviewPanel(currentUser), "OVERVIEW");
+            contentPanel.add(new MyJobsPanel(currentUser), "JOBS");
+        }
+
+        // Manager
+        else if (currentUser.getRole() == UserRole.MANAGER) {
+            contentPanel.add(new OverviewPanel(currentUser), "OVERVIEW");
             contentPanel.add(new StaffManagementPanel(), "STAFF");
             contentPanel.add(new PriceSettingsPanel(), "PRICES");
             contentPanel.add(new FeedbackPanel(), "FEEDBACKS");
             contentPanel.add(new ReportsPanel(), "REPORTS");
         }
-            
-        // Show overview by default (outside IF)
-        cardLayout.show(contentPanel, "OVERVIEW");   
+
+        // Customer
+        else if (currentUser.getRole() == UserRole.CUSTOMER) {
+            contentPanel.add(new OverviewPanel(currentUser), "OVERVIEW");
+            contentPanel.add(new OverviewPanel(currentUser), "HISTORY");
+            contentPanel.add(new OverviewPanel(currentUser), "MY_FEEDBACK");
+        }
+
+        // default view
+        cardLayout.show(contentPanel, "OVERVIEW");
     }
     
     @Override
     protected void addEventHandlers() {
+    }
+
+    public void switchToPanel(String panelName) {
+        cardLayout.show(contentPanel, panelName);
+        navPanel.setActiveButton(panelName);
     }
     
     public void logout() {

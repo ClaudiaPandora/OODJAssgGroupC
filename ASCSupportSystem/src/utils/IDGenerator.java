@@ -21,4 +21,8 @@ public class IDGenerator {
     public static String generateCommentID(int count) {
         return "C" + String.format("%04d", count + 1);
     }
+    
+    public static String generateTechNoteID(int count) {
+        return "N" + String.format("%04d", count + 1);
+    }
 }
