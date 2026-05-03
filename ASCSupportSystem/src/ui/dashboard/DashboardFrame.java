@@ -11,6 +11,9 @@ import ui.customer.CustomerHistoryPanel;
 import ui.customer.CustomerFeedbackPanel;
 
 
+import ui.technician.MyJobsPanel;
+import ui.technician.TechnicianOverviewPanel;
+
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.WindowAdapter;
@@ -114,6 +117,21 @@ public class DashboardFrame extends BaseFrame {
     }
     
     private void setupContentPanels() {
+
+        contentPanel.removeAll();
+
+        ProfilePanel profilePanel = new ProfilePanel(currentUser);
+        contentPanel.add(profilePanel, "PROFILE");
+
+        // Technician
+        if (currentUser.getRole() == UserRole.TECHNICIAN) {
+            contentPanel.add(new TechnicianOverviewPanel(currentUser), "OVERVIEW");
+            contentPanel.add(new MyJobsPanel(currentUser), "JOBS");
+        }
+
+        // Manager
+        else if (currentUser.getRole() == UserRole.MANAGER) {
+            contentPanel.add(new OverviewPanel(currentUser), "OVERVIEW");
     	// Remove any existing components
         contentPanel.removeAll();
 
@@ -135,6 +153,14 @@ public class DashboardFrame extends BaseFrame {
             contentPanel.add(new CustomerFeedbackPanel(currentUser), "MY_FEEDBACK");
         }
 
+        // Customer
+        else if (currentUser.getRole() == UserRole.CUSTOMER) {
+            contentPanel.add(new OverviewPanel(currentUser), "OVERVIEW");
+            contentPanel.add(new OverviewPanel(currentUser), "HISTORY");
+            contentPanel.add(new OverviewPanel(currentUser), "MY_FEEDBACK");
+        }
+
+        // default view
      // Show overview by default (outside IF)
         cardLayout.show(contentPanel, "OVERVIEW");
     }
@@ -142,6 +168,11 @@ public class DashboardFrame extends BaseFrame {
     
     @Override
     protected void addEventHandlers() {
+    }
+
+    public void switchToPanel(String panelName) {
+        cardLayout.show(contentPanel, panelName);
+        navPanel.setActiveButton(panelName);
     }
     
     public void logout() {

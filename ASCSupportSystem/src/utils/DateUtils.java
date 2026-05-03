@@ -29,4 +29,16 @@ public class DateUtils {
     public static LocalDate parseDate(String dateStr) {
         return LocalDate.parse(dateStr, DATE_FORMATTER);
     }
+    
+    public static boolean isWithinLast7Days(String dateStr) {
+        try {
+            java.time.LocalDate date = java.time.LocalDate.parse(dateStr);
+            java.time.LocalDate today = java.time.LocalDate.now();
+            java.time.LocalDate sevenDaysAgo = today.minusDays(7);
+
+            return (!date.isBefore(sevenDaysAgo)) && (!date.isAfter(today));
+        } catch (Exception e) {
+            return false;
+        }
+    }
 }
