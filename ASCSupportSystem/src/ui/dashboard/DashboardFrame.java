@@ -7,6 +7,9 @@ import ui.common.BaseFrame;
 import ui.common.HeaderPanel;
 import ui.common.NavigationPanel;
 import ui.manager.*;
+import ui.customer.CustomerHistoryPanel;
+import ui.customer.CustomerFeedbackPanel;
+
 
 import ui.technician.MyJobsPanel;
 import ui.technician.TechnicianOverviewPanel;
@@ -129,10 +132,25 @@ public class DashboardFrame extends BaseFrame {
         // Manager
         else if (currentUser.getRole() == UserRole.MANAGER) {
             contentPanel.add(new OverviewPanel(currentUser), "OVERVIEW");
+    	// Remove any existing components
+        contentPanel.removeAll();
+
+        // Common panels
+        OverviewPanel overviewPanel = new OverviewPanel(currentUser);
+        ProfilePanel profilePanel = new ProfilePanel(currentUser);
+
+        contentPanel.add(overviewPanel, "OVERVIEW");
+        contentPanel.add(profilePanel, "PROFILE");
+
+        // Role-specific panels
+        if (currentUser.getRole() == UserRole.MANAGER) {
             contentPanel.add(new StaffManagementPanel(), "STAFF");
             contentPanel.add(new PriceSettingsPanel(), "PRICES");
             contentPanel.add(new FeedbackPanel(), "FEEDBACKS");
             contentPanel.add(new ReportsPanel(), "REPORTS");
+        } else if (currentUser.getRole() == UserRole.CUSTOMER) {
+            contentPanel.add(new CustomerHistoryPanel(currentUser), "HISTORY");
+            contentPanel.add(new CustomerFeedbackPanel(currentUser), "MY_FEEDBACK");
         }
 
         // Customer
@@ -143,8 +161,10 @@ public class DashboardFrame extends BaseFrame {
         }
 
         // default view
+     // Show overview by default (outside IF)
         cardLayout.show(contentPanel, "OVERVIEW");
     }
+
     
     @Override
     protected void addEventHandlers() {
