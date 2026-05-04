@@ -1,0 +1,2 @@
+M001|John Manager|012-3456789|manager@apu.edu.my|manager1|password
+M002|tom|1234567890|tom@gmail|tom|password
