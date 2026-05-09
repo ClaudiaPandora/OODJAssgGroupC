@@ -16,6 +16,7 @@ import javax.swing.table.DefaultTableModel;
 import javax.swing.table.JTableHeader;
 import java.awt.*;
 import java.util.ArrayList;
+import java.util.Hashtable;
 import java.util.List;
 
 public class CustomerFeedbackPanel extends BasePanel {
@@ -27,15 +28,22 @@ public class CustomerFeedbackPanel extends BasePanel {
     private final UserDAO userDAO;
 
     private JComboBox<AppointmentItem> appointmentCombo;
-    private JComboBox<String> targetCombo;
-    private JComboBox<Integer> ratingCombo;
-    private JTextArea commentArea;
-    private JButton submitButton;
     private JLabel appointmentInfoLabel;
-    private JLabel personInfoLabel;
-    private JTable feedbackTable;
+    private JLabel technicianInfoLabel;
+    private JLabel counterStaffInfoLabel;
+
+    private JSlider technicianRatingSlider;
+    private JSlider counterStaffRatingSlider;
+    private JTextArea technicianCommentArea;
+    private JTextArea counterStaffCommentArea;
+    private JButton technicianSubmitButton;
+    private JButton counterStaffSubmitButton;
+
+    private JTable technicianFeedbackTable;
+    private JTable counterStaffFeedbackTable;
     private JTable commentsTable;
-    private DefaultTableModel feedbackTableModel;
+    private DefaultTableModel technicianFeedbackTableModel;
+    private DefaultTableModel counterStaffFeedbackTableModel;
     private DefaultTableModel commentsTableModel;
 
     public CustomerFeedbackPanel(User currentUser) {
@@ -60,45 +68,38 @@ public class CustomerFeedbackPanel extends BasePanel {
         appointmentCombo.setBackground(Color.WHITE);
         appointmentCombo.setForeground(Color.BLACK);
 
-        targetCombo = new JComboBox<>(new String[]{"Technician", "Counter Staff"});
-        targetCombo.setFont(new Font("Segoe UI", Font.PLAIN, 13));
-        targetCombo.setBackground(Color.WHITE);
-        targetCombo.setForeground(Color.BLACK);
-
-        ratingCombo = new JComboBox<>(new Integer[]{5, 4, 3, 2, 1});
-        ratingCombo.setFont(new Font("Segoe UI", Font.PLAIN, 13));
-        ratingCombo.setBackground(Color.WHITE);
-        ratingCombo.setForeground(Color.BLACK);
-
-        commentArea = new JTextArea(6, 20);
-        commentArea.setFont(new Font("Segoe UI", Font.PLAIN, 13));
-        commentArea.setLineWrap(true);
-        commentArea.setWrapStyleWord(true);
-        commentArea.setForeground(Color.BLACK);
-        commentArea.setBackground(Color.WHITE);
-        commentArea.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(new Color(180, 180, 180)),
-                BorderFactory.createEmptyBorder(10, 10, 10, 10)
-        ));
-
-        submitButton = new JButton("Submit Comment");
-        submitButton.setFont(new Font("Segoe UI", Font.BOLD, 11));
-        submitButton.setBackground(NAVY_BLUE);
-        submitButton.setForeground(Color.WHITE);
-        submitButton.setFocusPainted(false);
-        submitButton.setBorderPainted(false);
-        submitButton.setCursor(new Cursor(Cursor.HAND_CURSOR));
-
         appointmentInfoLabel = new JLabel("Select an appointment.");
         appointmentInfoLabel.setFont(new Font("Segoe UI", Font.PLAIN, 11));
         appointmentInfoLabel.setForeground(new Color(100, 100, 100));
 
-        personInfoLabel = new JLabel("Target person: -");
-        personInfoLabel.setFont(new Font("Segoe UI", Font.PLAIN, 11));
-        personInfoLabel.setForeground(new Color(100, 100, 100));
+        technicianInfoLabel = new JLabel("Technician: -");
+        technicianInfoLabel.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        technicianInfoLabel.setForeground(new Color(100, 100, 100));
 
-        feedbackTableModel = new DefaultTableModel(
+        counterStaffInfoLabel = new JLabel("Counter Staff: -");
+        counterStaffInfoLabel.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        counterStaffInfoLabel.setForeground(new Color(100, 100, 100));
+
+        technicianRatingSlider = createRatingSlider();
+        counterStaffRatingSlider = createRatingSlider();
+
+        technicianCommentArea = createCommentArea();
+        counterStaffCommentArea = createCommentArea();
+
+        technicianSubmitButton = createActionButton("Submit Technician Feedback");
+        counterStaffSubmitButton = createActionButton("Submit Counter Staff Feedback");
+
+        technicianFeedbackTableModel = new DefaultTableModel(
                 new String[]{"Appointment ID", "Technician", "Rating", "Feedback"}, 0
+        ) {
+            @Override
+            public boolean isCellEditable(int row, int column) {
+                return false;
+            }
+        };
+
+        counterStaffFeedbackTableModel = new DefaultTableModel(
+                new String[]{"Appointment ID", "Counter Staff", "Rating", "Comment"}, 0
         ) {
             @Override
             public boolean isCellEditable(int row, int column) {
@@ -115,58 +116,107 @@ public class CustomerFeedbackPanel extends BasePanel {
             }
         };
 
-        feedbackTable = createStyledTable(feedbackTableModel);
+        technicianFeedbackTable = createStyledTable(technicianFeedbackTableModel);
+        counterStaffFeedbackTable = createStyledTable(counterStaffFeedbackTableModel);
         commentsTable = createStyledTable(commentsTableModel);
     }
 
     @Override
     protected void setupLayout() {
-        setLayout(new BorderLayout(15, 15));
-        setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
+        setLayout(new BorderLayout());
 
-        JPanel topPanel = new JPanel();
-        topPanel.setLayout(new BoxLayout(topPanel, BoxLayout.Y_AXIS));
-        topPanel.setBackground(PANEL_BG);
+        JPanel pagePanel = new JPanel(new BorderLayout());
+        pagePanel.setBackground(PANEL_BG);
+        pagePanel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
+
+        JPanel headerPanel = new JPanel(new BorderLayout());
+        headerPanel.setBackground(PANEL_BG);
+
+        JPanel headerTextPanel = new JPanel();
+        headerTextPanel.setLayout(new BoxLayout(headerTextPanel, BoxLayout.Y_AXIS));
+        headerTextPanel.setBackground(PANEL_BG);
 
         JLabel titleLabel = new JLabel("Feedback and Comments");
         titleLabel.setFont(new Font("Segoe UI", Font.BOLD, 24));
         titleLabel.setForeground(NAVY_BLUE);
-        titleLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
+        titleLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
 
-        JLabel subtitleLabel = new JLabel("View technician feedback and submit your own comments.");
+        JLabel subtitleLabel = new JLabel("View technician feedback and submit your comments.");
         subtitleLabel.setFont(new Font("Segoe UI", Font.PLAIN, 12));
         subtitleLabel.setForeground(new Color(100, 100, 100));
-        subtitleLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
+        subtitleLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
 
-        topPanel.add(titleLabel);
-        topPanel.add(Box.createVerticalStrut(5));
-        topPanel.add(subtitleLabel);
-        topPanel.add(Box.createVerticalStrut(15));
-        topPanel.add(createCommentFormPanel());
+        headerTextPanel.add(titleLabel);
+        headerTextPanel.add(Box.createVerticalStrut(5));
+        headerTextPanel.add(subtitleLabel);
+
+        headerPanel.add(headerTextPanel, BorderLayout.WEST);
+
+        JPanel content = new JPanel();
+        content.setLayout(new BoxLayout(content, BoxLayout.Y_AXIS));
+        content.setBackground(PANEL_BG);
+        content.setBorder(BorderFactory.createEmptyBorder(15, 0, 0, 0));
+
+        JPanel appointmentPanel = createAppointmentPanel();
+        appointmentPanel.setAlignmentX(Component.CENTER_ALIGNMENT);
+        appointmentPanel.setMaximumSize(new Dimension(900, 90));
+        appointmentPanel.setPreferredSize(new Dimension(900, 90));
+
+        JPanel technicianCard = createRatingCard(
+                "Rate Technician",
+                technicianInfoLabel,
+                technicianRatingSlider,
+                technicianCommentArea,
+                technicianSubmitButton
+        );
+        technicianCard.setAlignmentX(Component.CENTER_ALIGNMENT);
+
+        JPanel counterStaffCard = createRatingCard(
+                "Rate Counter Staff",
+                counterStaffInfoLabel,
+                counterStaffRatingSlider,
+                counterStaffCommentArea,
+                counterStaffSubmitButton
+        );
+        counterStaffCard.setAlignmentX(Component.CENTER_ALIGNMENT);
 
         JTabbedPane tabbedPane = new JTabbedPane();
         tabbedPane.setFont(new Font("Segoe UI", Font.BOLD, 12));
         tabbedPane.setBackground(Color.WHITE);
-
-        tabbedPane.addTab("Technician Feedback", createTablePanel(feedbackTable));
+        tabbedPane.addTab("Technician Feedback", createTablePanel(technicianFeedbackTable));
+        tabbedPane.addTab("Counter Staff Feedback", createTablePanel(counterStaffFeedbackTable));
         tabbedPane.addTab("My Comments", createTablePanel(commentsTable));
+        tabbedPane.setAlignmentX(Component.CENTER_ALIGNMENT);
+        tabbedPane.setPreferredSize(new Dimension(900, 280));
+        tabbedPane.setMaximumSize(new Dimension(900, 300));
 
-        add(topPanel, BorderLayout.NORTH);
-        add(tabbedPane, BorderLayout.CENTER);
+        content.add(appointmentPanel);
+        content.add(Box.createVerticalStrut(20));
+        content.add(technicianCard);
+        content.add(Box.createVerticalStrut(20));
+        content.add(counterStaffCard);
+        content.add(Box.createVerticalStrut(20));
+        content.add(tabbedPane);
+
+        JScrollPane scrollPane = new JScrollPane(content);
+        scrollPane.setBorder(null);
+        scrollPane.getViewport().setBackground(PANEL_BG);
+        scrollPane.getVerticalScrollBar().setUnitIncrement(16);
+        scrollPane.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
+
+        pagePanel.add(headerPanel, BorderLayout.NORTH);
+        pagePanel.add(scrollPane, BorderLayout.CENTER);
+
+        add(pagePanel, BorderLayout.CENTER);
     }
 
-    private JPanel createCommentFormPanel() {
-        JPanel wrapper = new JPanel(new GridBagLayout());
-        wrapper.setBackground(PANEL_BG);
-        wrapper.setBorder(BorderFactory.createEmptyBorder(10, 0, 10, 0));
-
-        JPanel formPanel = new JPanel(new GridBagLayout());
-        formPanel.setBackground(Color.WHITE);
-        formPanel.setBorder(BorderFactory.createCompoundBorder(
+    private JPanel createAppointmentPanel() {
+        JPanel panel = new JPanel(new GridBagLayout());
+        panel.setBackground(Color.WHITE);
+        panel.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createLineBorder(BORDER_LIGHT, 2),
                 BorderFactory.createLineBorder(BORDER_DARK, 2)
         ));
-        formPanel.setPreferredSize(new Dimension(760, 420));
 
         GridBagConstraints g = new GridBagConstraints();
         g.insets = new Insets(10, 12, 10, 12);
@@ -175,54 +225,75 @@ public class CustomerFeedbackPanel extends BasePanel {
 
         g.gridx = 0;
         g.gridy = 0;
-        formPanel.add(createLabel("Appointment"), g);
+        panel.add(createLabel("Appointment"), g);
 
         g.gridx = 1;
         g.weightx = 1;
-        formPanel.add(appointmentCombo, g);
-
-        g.gridx = 2;
-        g.weightx = 0;
-        formPanel.add(createLabel("Target"), g);
-
-        g.gridx = 3;
-        formPanel.add(targetCombo, g);
+        panel.add(appointmentCombo, g);
 
         g.gridx = 0;
         g.gridy = 1;
-        formPanel.add(createLabel("Rating"), g);
-
-        g.gridx = 1;
-        formPanel.add(ratingCombo, g);
-
-        g.gridx = 2;
         g.gridwidth = 2;
-        formPanel.add(appointmentInfoLabel, g);
+        panel.add(appointmentInfoLabel, g);
 
-        g.gridx = 2;
-        g.gridy = 2;
-        formPanel.add(personInfoLabel, g);
+        return panel;
+    }
 
-        g.gridx = 0;
-        g.gridy = 2;
-        g.gridwidth = 2;
-        g.fill = GridBagConstraints.BOTH;
-        g.weighty = 1;
-        JScrollPane textScroll = new JScrollPane(commentArea);
-        textScroll.setBorder(BorderFactory.createEmptyBorder());
-        formPanel.add(textScroll, g);
+    private JPanel createRatingCard(String title, JLabel personLabel, JSlider slider, JTextArea commentArea, JButton submitButton) {
+        JPanel card = new JPanel(new BorderLayout(0, 12));
+        card.setBackground(Color.WHITE);
+        card.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(BORDER_LIGHT, 2),
+                BorderFactory.createLineBorder(BORDER_DARK, 2)
+        ));
+        card.setMaximumSize(new Dimension(900, 320));
+        card.setPreferredSize(new Dimension(900, 320));
 
-        g.gridx = 3;
-        g.gridy = 3;
-        g.gridwidth = 1;
-        g.weightx = 0;
-        g.weighty = 0;
-        g.fill = GridBagConstraints.NONE;
-        g.anchor = GridBagConstraints.EAST;
-        formPanel.add(submitButton, g);
+        JPanel header = new JPanel();
+        header.setLayout(new BoxLayout(header, BoxLayout.Y_AXIS));
+        header.setBackground(Color.WHITE);
+        header.setBorder(BorderFactory.createEmptyBorder(12, 12, 0, 12));
 
-        wrapper.add(formPanel);
-        return wrapper;
+        JLabel titleLabel = new JLabel(title);
+        titleLabel.setFont(new Font("Segoe UI", Font.BOLD, 16));
+        titleLabel.setForeground(NAVY_BLUE);
+
+        header.add(titleLabel);
+        header.add(Box.createVerticalStrut(4));
+        header.add(personLabel);
+
+        JPanel body = new JPanel(new BorderLayout(0, 10));
+        body.setBackground(Color.WHITE);
+        body.setBorder(BorderFactory.createEmptyBorder(0, 12, 12, 12));
+
+        JPanel ratingPanel = new JPanel();
+        ratingPanel.setLayout(new BoxLayout(ratingPanel, BoxLayout.Y_AXIS));
+        ratingPanel.setBackground(Color.WHITE);
+
+        JLabel ratingLabel = createLabel("Rating");
+        ratingLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        slider.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        ratingPanel.add(ratingLabel);
+        ratingPanel.add(Box.createVerticalStrut(8));
+        ratingPanel.add(slider);
+
+        JScrollPane commentScroll = new JScrollPane(commentArea);
+        commentScroll.setBorder(BorderFactory.createTitledBorder("Comment"));
+        commentScroll.setPreferredSize(new Dimension(0, 140));
+
+        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0));
+        buttonPanel.setBackground(Color.WHITE);
+        buttonPanel.add(submitButton);
+
+        body.add(ratingPanel, BorderLayout.NORTH);
+        body.add(commentScroll, BorderLayout.CENTER);
+        body.add(buttonPanel, BorderLayout.SOUTH);
+
+        card.add(header, BorderLayout.NORTH);
+        card.add(body, BorderLayout.CENTER);
+        return card;
     }
 
     private JPanel createTablePanel(JTable table) {
@@ -235,13 +306,6 @@ public class CustomerFeedbackPanel extends BasePanel {
 
         panel.add(scrollPane, BorderLayout.CENTER);
         return panel;
-    }
-
-    private JLabel createLabel(String text) {
-        JLabel label = new JLabel(text);
-        label.setFont(new Font("Segoe UI", Font.BOLD, 12));
-        label.setForeground(Color.BLACK);
-        return label;
     }
 
     private JTable createStyledTable(DefaultTableModel model) {
@@ -263,6 +327,62 @@ public class CustomerFeedbackPanel extends BasePanel {
         header.setReorderingAllowed(false);
 
         return table;
+    }
+
+    private JLabel createLabel(String text) {
+        JLabel label = new JLabel(text);
+        label.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        label.setForeground(Color.BLACK);
+        return label;
+    }
+
+    private JTextArea createCommentArea() {
+        JTextArea area = new JTextArea(5, 20);
+        area.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        area.setLineWrap(true);
+        area.setWrapStyleWord(true);
+        area.setForeground(Color.BLACK);
+        area.setBackground(Color.WHITE);
+        area.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(new Color(180, 180, 180)),
+                BorderFactory.createEmptyBorder(10, 10, 10, 10)
+        ));
+        return area;
+    }
+
+    private JButton createActionButton(String text) {
+        JButton button = new JButton(text);
+        button.setFont(new Font("Segoe UI", Font.BOLD, 11));
+        button.setBackground(NAVY_BLUE);
+        button.setForeground(Color.WHITE);
+        button.setFocusPainted(false);
+        button.setBorderPainted(false);
+        button.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        button.setPreferredSize(new Dimension(220, 32));
+        return button;
+    }
+
+    private JSlider createRatingSlider() {
+        JSlider slider = new JSlider(1, 5, 5);
+        slider.setMajorTickSpacing(1);
+        slider.setPaintTicks(true);
+        slider.setPaintLabels(true);
+        slider.setSnapToTicks(true);
+        slider.setBackground(Color.WHITE);
+        slider.setForeground(NAVY_BLUE);
+        slider.setPreferredSize(new Dimension(260, 55));
+        slider.setMaximumSize(new Dimension(260, 55));
+
+        Hashtable<Integer, JLabel> labels = new Hashtable<>();
+        for (int i = 1; i <= 5; i++) {
+            JLabel label = new JLabel(String.valueOf(i));
+            label.setFont(new Font("Segoe UI", Font.BOLD, 14));
+            label.setForeground(NAVY_BLUE);
+            labels.put(i, label);
+        }
+        slider.setLabelTable(labels);
+
+        return slider;
     }
 
     private void loadAppointments() {
@@ -288,7 +408,8 @@ public class CustomerFeedbackPanel extends BasePanel {
         AppointmentItem selected = (AppointmentItem) appointmentCombo.getSelectedItem();
         if (selected == null) {
             appointmentInfoLabel.setText("No completed or paid appointment available.");
-            personInfoLabel.setText("Target person: -");
+            technicianInfoLabel.setText("Technician: -");
+            counterStaffInfoLabel.setText("Counter Staff: -");
             return;
         }
 
@@ -296,17 +417,13 @@ public class CustomerFeedbackPanel extends BasePanel {
         appointmentInfoLabel.setText(
                 "Selected: " + appointment.getId() + " | " + appointment.getDate() + " | " + appointment.getServiceType()
         );
-
-        String target = (String) targetCombo.getSelectedItem();
-        if ("Counter Staff".equals(target)) {
-            personInfoLabel.setText("Target person: " + resolveUserName(appointment.getCounterStaffId()));
-        } else {
-            personInfoLabel.setText("Target person: " + resolveUserName(appointment.getTechnicianId()));
-        }
+        technicianInfoLabel.setText("Technician: " + resolveUserName(appointment.getTechnicianId()));
+        counterStaffInfoLabel.setText("Counter Staff: " + resolveUserName(appointment.getCounterStaffId()));
     }
 
     private void refreshTables() {
-        feedbackTableModel.setRowCount(0);
+        technicianFeedbackTableModel.setRowCount(0);
+        counterStaffFeedbackTableModel.setRowCount(0);
         commentsTableModel.setRowCount(0);
 
         List<Appointment> appointments = appointmentDAO.findByCustomerId(currentUser.getId());
@@ -318,7 +435,7 @@ public class CustomerFeedbackPanel extends BasePanel {
 
         for (Feedback feedback : feedbackDAO.readAll()) {
             if (myAppointmentIds.contains(feedback.getAppointmentId())) {
-                feedbackTableModel.addRow(new Object[]{
+                technicianFeedbackTableModel.addRow(new Object[]{
                         feedback.getAppointmentId(),
                         resolveUserName(feedback.getTechnicianId()),
                         feedback.getRating() + "/5",
@@ -328,6 +445,15 @@ public class CustomerFeedbackPanel extends BasePanel {
         }
 
         for (Comment comment : commentDAO.findByCustomerId(currentUser.getId())) {
+            if (comment.getCounterStaffId() != null && !comment.getCounterStaffId().trim().isEmpty()) {
+                counterStaffFeedbackTableModel.addRow(new Object[]{
+                        comment.getAppointmentId(),
+                        resolveUserName(comment.getCounterStaffId()),
+                        comment.getRating() + "/5",
+                        comment.getContent()
+                });
+            }
+
             commentsTableModel.addRow(new Object[]{
                     comment.getId(),
                     comment.getAppointmentId(),
@@ -338,7 +464,7 @@ public class CustomerFeedbackPanel extends BasePanel {
         }
     }
 
-    private void submitComment() {
+    private void submitComment(boolean forCounterStaff) {
         AppointmentItem selected = (AppointmentItem) appointmentCombo.getSelectedItem();
         if (selected == null) {
             JOptionPane.showMessageDialog(this,
@@ -348,7 +474,11 @@ public class CustomerFeedbackPanel extends BasePanel {
             return;
         }
 
-        String content = commentArea.getText().trim();
+        Appointment appointment = selected.getAppointment();
+        JTextArea activeArea = forCounterStaff ? counterStaffCommentArea : technicianCommentArea;
+        JSlider activeSlider = forCounterStaff ? counterStaffRatingSlider : technicianRatingSlider;
+
+        String content = activeArea.getText().trim();
         if (content.isEmpty()) {
             JOptionPane.showMessageDialog(this,
                     "Please enter a comment before submitting.",
@@ -357,14 +487,29 @@ public class CustomerFeedbackPanel extends BasePanel {
             return;
         }
 
-        Appointment appointment = selected.getAppointment();
+        if (forCounterStaff && (appointment.getCounterStaffId() == null || appointment.getCounterStaffId().trim().isEmpty())) {
+            JOptionPane.showMessageDialog(this,
+                    "This appointment does not have counter staff assigned.",
+                    "Validation Error",
+                    JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        if (!forCounterStaff && (appointment.getTechnicianId() == null || appointment.getTechnicianId().trim().isEmpty())) {
+            JOptionPane.showMessageDialog(this,
+                    "This appointment does not have technician assigned.",
+                    "Validation Error",
+                    JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
         Comment comment = new Comment();
         comment.setAppointmentId(appointment.getId());
         comment.setCustomerId(currentUser.getId());
         comment.setContent(content);
-        comment.setRating((Integer) ratingCombo.getSelectedItem());
+        comment.setRating(activeSlider.getValue());
 
-        if ("Counter Staff".equals(targetCombo.getSelectedItem())) {
+        if (forCounterStaff) {
             comment.setCounterStaffId(appointment.getCounterStaffId());
             comment.setTechnicianId(null);
         } else {
@@ -378,8 +523,8 @@ public class CustomerFeedbackPanel extends BasePanel {
                     "Comment submitted successfully!",
                     "Success",
                     JOptionPane.INFORMATION_MESSAGE);
-            commentArea.setText("");
-            ratingCombo.setSelectedIndex(0);
+            activeArea.setText("");
+            activeSlider.setValue(5);
             refreshTables();
         } else {
             JOptionPane.showMessageDialog(this,
@@ -410,8 +555,8 @@ public class CustomerFeedbackPanel extends BasePanel {
     @Override
     protected void addEventHandlers() {
         appointmentCombo.addActionListener(e -> updateSelectionInfo());
-        targetCombo.addActionListener(e -> updateSelectionInfo());
-        submitButton.addActionListener(e -> submitComment());
+        technicianSubmitButton.addActionListener(e -> submitComment(false));
+        counterStaffSubmitButton.addActionListener(e -> submitComment(true));
     }
 
     private static class AppointmentItem {

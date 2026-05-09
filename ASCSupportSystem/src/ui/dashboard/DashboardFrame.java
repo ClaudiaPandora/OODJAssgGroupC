@@ -1,4 +1,6 @@
 package ui.dashboard;
+import ui.customer.CustomerOverviewPanel;
+
 
 import enums.UserRole;
 import models.User;
@@ -126,7 +128,7 @@ public class DashboardFrame extends BaseFrame {
             contentPanel.add(new FeedbackPanel(), "FEEDBACKS");
             contentPanel.add(new ReportsPanel(), "REPORTS");
         } else if (currentUser.getRole() == UserRole.CUSTOMER) {
-            contentPanel.add(new OverviewPanel(currentUser), "OVERVIEW");
+            contentPanel.add(new CustomerOverviewPanel(currentUser), "OVERVIEW");
             contentPanel.add(new CustomerHistoryPanel(currentUser), "HISTORY");
             contentPanel.add(new CustomerFeedbackPanel(currentUser), "MY_FEEDBACK");
         } else {
