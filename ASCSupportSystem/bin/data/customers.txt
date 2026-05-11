@@ -1,0 +1,3 @@
+U001|Alice Customer|012-3456785|alice@gmail.com|cust1|password
+U002|Bob Customer|012-3456784|bob@gmail.com|cust2|password
+U003|Charlie Customer|012-3456783|charlie@gmail.com|cust3|password

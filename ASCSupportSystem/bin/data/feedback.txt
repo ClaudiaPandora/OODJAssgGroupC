@@ -1,0 +1,7 @@
+F0001|A0001|T001|The technician arrived on time and fixed my car quickly. Very professional!|5
+F0002|A0002|T001|Good service but took longer than expected.|3
+F0003|A0003|T002|Excellent work! My car runs smoothly now.|5
+F0004|A0004|T002|The technician was knowledgeable and friendly.|4
+F0005|A0005|T001|Satisfied with the repair. Price was reasonable.|4
+F0006|A0006|T003|Great customer service and fast turnaround.|5
+F0007|A0007|T001|Could be better. The technician forgot to check the battery.|2

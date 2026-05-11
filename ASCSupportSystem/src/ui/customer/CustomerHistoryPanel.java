@@ -11,6 +11,7 @@ import models.User;
 import ui.common.BasePanel;
 
 import javax.swing.*;
+import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.DefaultTableModel;
 import javax.swing.table.JTableHeader;
 import java.awt.*;
@@ -29,12 +30,13 @@ public class CustomerHistoryPanel extends BasePanel {
     private JTextField searchField;
     private JComboBox<String> statusFilter;
     private JComboBox<String> serviceFilter;
-    private DefaultTableModel serviceTableModel;
-    private DefaultTableModel paymentTableModel;
-    private JTable serviceTable;
-    private JTable paymentTable;
     private JButton applyButton;
     private JButton resetButton;
+
+    private JTable serviceTable;
+    private JTable paymentTable;
+    private DefaultTableModel serviceTableModel;
+    private DefaultTableModel paymentTableModel;
 
     public CustomerHistoryPanel(User currentUser) {
         this.currentUser = currentUser;
@@ -61,12 +63,16 @@ public class CustomerHistoryPanel extends BasePanel {
                 BorderFactory.createEmptyBorder(8, 10, 8, 10)
         ));
 
-        statusFilter = new JComboBox<>(new String[]{"All Status", "PENDING", "ASSIGNED", "COMPLETED", "PAID"});
+        statusFilter = new JComboBox<>(new String[]{
+                "All Status", "PENDING", "ASSIGNED", "COMPLETED", "PAID"
+        });
         statusFilter.setFont(new Font("Segoe UI", Font.PLAIN, 13));
         statusFilter.setBackground(Color.WHITE);
         statusFilter.setForeground(Color.BLACK);
 
-        serviceFilter = new JComboBox<>(new String[]{"All Services", "NORMAL", "MAJOR"});
+        serviceFilter = new JComboBox<>(new String[]{
+                "All Services", "NORMAL", "MAJOR"
+        });
         serviceFilter.setFont(new Font("Segoe UI", Font.PLAIN, 13));
         serviceFilter.setBackground(Color.WHITE);
         serviceFilter.setForeground(Color.BLACK);
@@ -97,7 +103,7 @@ public class CustomerHistoryPanel extends BasePanel {
         };
 
         paymentTableModel = new DefaultTableModel(
-                new String[]{"Payment ID", "Appointment ID", "Payment Date", "Method", "Amount"}, 0
+                new String[]{"Payment ID", "Appointment ID", "Payment Date", "Method", "Amount", "Status"}, 0
         ) {
             @Override
             public boolean isCellEditable(int row, int column) {
@@ -107,6 +113,9 @@ public class CustomerHistoryPanel extends BasePanel {
 
         serviceTable = createStyledTable(serviceTableModel);
         paymentTable = createStyledTable(paymentTableModel);
+
+        serviceTable.getColumnModel().getColumn(4).setCellRenderer(new StatusColorRenderer());
+        paymentTable.getColumnModel().getColumn(5).setCellRenderer(new StatusColorRenderer());
     }
 
     @Override
@@ -121,23 +130,25 @@ public class CustomerHistoryPanel extends BasePanel {
         JLabel titleLabel = new JLabel("Service and Payment History");
         titleLabel.setFont(new Font("Segoe UI", Font.BOLD, 24));
         titleLabel.setForeground(NAVY_BLUE);
-        titleLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
+        titleLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
 
         JLabel subtitleLabel = new JLabel("View your service history, payment history, search and filter records.");
         subtitleLabel.setFont(new Font("Segoe UI", Font.PLAIN, 12));
         subtitleLabel.setForeground(new Color(100, 100, 100));
-        subtitleLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
+        subtitleLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        JPanel filterPanel = createSearchFilterPanel();
+        filterPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
 
         topPanel.add(titleLabel);
         topPanel.add(Box.createVerticalStrut(5));
         topPanel.add(subtitleLabel);
         topPanel.add(Box.createVerticalStrut(15));
-        topPanel.add(createSearchFilterPanel());
+        topPanel.add(filterPanel);
 
         JTabbedPane tabbedPane = new JTabbedPane();
         tabbedPane.setFont(new Font("Segoe UI", Font.BOLD, 12));
         tabbedPane.setBackground(Color.WHITE);
-
         tabbedPane.addTab("Service History", createTablePanel(serviceTable));
         tabbedPane.addTab("Payment History", createTablePanel(paymentTable));
 
@@ -155,15 +166,12 @@ public class CustomerHistoryPanel extends BasePanel {
 
         JLabel searchLabel = new JLabel("Search:");
         searchLabel.setFont(new Font("Segoe UI", Font.BOLD, 12));
-        searchLabel.setForeground(Color.BLACK);
 
         JLabel statusLabel = new JLabel("Status:");
         statusLabel.setFont(new Font("Segoe UI", Font.BOLD, 12));
-        statusLabel.setForeground(Color.BLACK);
 
         JLabel serviceLabel = new JLabel("Service:");
         serviceLabel.setFont(new Font("Segoe UI", Font.BOLD, 12));
-        serviceLabel.setForeground(Color.BLACK);
 
         panel.add(searchLabel);
         panel.add(searchField);
@@ -237,7 +245,8 @@ public class CustomerHistoryPanel extends BasePanel {
                         payment.getAppointmentId(),
                         payment.getPaymentDate(),
                         payment.getPaymentMethod(),
-                        formatAmount(payment.getAmount())
+                        formatAmount(payment.getAmount()),
+                        resolvePaymentStatus(payment)
                 });
             }
         }
@@ -292,6 +301,13 @@ public class CustomerHistoryPanel extends BasePanel {
         return appointment.getServiceType() == ServiceType.valueOf(selectedService);
     }
 
+    private String resolvePaymentStatus(Payment payment) {
+        if (payment == null) {
+            return "-";
+        }
+        return payment.getAmount() > 0 ? "PAID" : "PENDING";
+    }
+
     private String resolveUserName(String userId) {
         if (userId == null || userId.trim().isEmpty()) {
             return "-";
@@ -335,5 +351,38 @@ public class CustomerHistoryPanel extends BasePanel {
         });
 
         searchField.addActionListener(e -> refreshTables());
+    }
+
+    private static class StatusColorRenderer extends DefaultTableCellRenderer {
+        @Override
+        public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected,
+                                                       boolean hasFocus, int row, int column) {
+            JLabel label = (JLabel) super.getTableCellRendererComponent(
+                    table, value, isSelected, hasFocus, row, column
+            );
+
+            label.setHorizontalAlignment(SwingConstants.LEFT);
+            label.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+
+            if (!isSelected) {
+                label.setBackground(Color.WHITE);
+            }
+
+            String status = value == null ? "" : value.toString().toUpperCase();
+
+            if ("COMPLETED".equals(status)) {
+                label.setForeground(new Color(34, 139, 34));
+            } else if ("PENDING".equals(status)) {
+                label.setForeground(new Color(204, 153, 0));
+            } else if ("ASSIGNED".equals(status)) {
+                label.setForeground(new Color(0, 102, 204));
+            } else if ("PAID".equals(status)) {
+                label.setForeground(new Color(34, 139, 34));
+            } else {
+                label.setForeground(Color.BLACK);
+            }
+
+            return label;
+        }
     }
 }

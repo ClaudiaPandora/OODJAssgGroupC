@@ -1,0 +1,2 @@
+C001|Sarah Counter|012-3456788|counter@apu.edu.my|counter1|password
+C002|Jane Counter|0123456781|counter2@apu.edu.my|counter2|password
