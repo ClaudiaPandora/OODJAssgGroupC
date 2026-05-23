@@ -131,6 +131,54 @@ public class UserDAO implements FileDAO<User> {
         return null;
     }
     
+    public Customer findCustomerById(String id) {
+        for (Customer c : readCustomers()) {
+            if (c.getId().equals(id)) {
+                return c;
+            }
+        }
+        return null;
+    }
+    
+    // ADD THIS METHOD - Find Technician by ID
+    public Technician findTechnicianById(String id) {
+        if (id == null || id.isEmpty()) {
+            return null;
+        }
+        for (Technician t : readTechnicians()) {
+            if (t.getId().equals(id)) {
+                return t;
+            }
+        }
+        return null;
+    }
+    
+    // ADD THIS METHOD - Find Counter Staff by ID
+    public CounterStaff findCounterStaffById(String id) {
+        if (id == null || id.isEmpty()) {
+            return null;
+        }
+        for (CounterStaff cs : readCounterStaff()) {
+            if (cs.getId().equals(id)) {
+                return cs;
+            }
+        }
+        return null;
+    }
+    
+    // ADD THIS METHOD - Find Manager by ID
+    public Manager findManagerById(String id) {
+        if (id == null || id.isEmpty()) {
+            return null;
+        }
+        for (Manager m : readManagers()) {
+            if (m.getId().equals(id)) {
+                return m;
+            }
+        }
+        return null;
+    }
+    
     private String generateNewId(UserRole role) {
         List<? extends User> users;
         String prefix;

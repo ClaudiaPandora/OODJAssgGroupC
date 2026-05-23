@@ -16,7 +16,7 @@ public class ProfilePanel extends BasePanel {
     private JTextField emailField;
     private JTextField phoneField;
     private JTextField usernameField;
-    private JPasswordField passwordField;
+    private JTextField passwordField;  // Changed from JPasswordField to JTextField
 
     private JLabel nameLabel;
 
@@ -42,7 +42,8 @@ public class ProfilePanel extends BasePanel {
         usernameField.setEditable(false);
         usernameField.setBackground(new Color(245, 245, 245));
 
-        passwordField = new JPasswordField(currentUser != null ? currentUser.getPassword() : "", 30);
+        // Changed from JPasswordField to JTextField to show actual password
+        passwordField = new JTextField(currentUser != null ? currentUser.getPassword() : "", 30);
 
         style(fullNameField);
         style(emailField);
@@ -244,7 +245,7 @@ public class ProfilePanel extends BasePanel {
         String fullName = fullNameField.getText().trim();
         String email = emailField.getText().trim();
         String phone = phoneField.getText().trim();
-        String password = new String(passwordField.getPassword());
+        String password = passwordField.getText().trim();  // Changed from getPassword() to getText()
 
         if (fullName.isEmpty()) {
             JOptionPane.showMessageDialog(this, "Full Name cannot be empty.", "Validation Error", JOptionPane.WARNING_MESSAGE);

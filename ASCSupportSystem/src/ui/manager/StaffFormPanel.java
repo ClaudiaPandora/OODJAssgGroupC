@@ -4,8 +4,6 @@ import dao.UserDAO;
 import enums.Mode;
 import enums.UserRole;
 import models.*;
-import ui.common.BaseFrame;
-
 import javax.swing.*;
 import java.awt.*;
 
@@ -18,14 +16,14 @@ public class StaffFormPanel extends JDialog {
     private JTextField usernameField;
     private JPasswordField passwordField;
     private JComboBox<String> roleComboBox;
-    private String originalRole;
     
     // Data
     private UserDAO userDAO;
     private User user;
     private Mode mode;
     private Runnable onSuccess;
-    private String originalUsername; // Store original username for update mode
+    private String originalUsername;
+    private String originalRole; // Store original role for update mode
     
     // Colors
     private Color NAVY_BLUE = new Color(0, 0, 128);
@@ -38,7 +36,7 @@ public class StaffFormPanel extends JDialog {
         this.user = user;
         this.onSuccess = onSuccess;
         
-        setSize(500, 560);
+        setSize(520, 580);
         setLocationRelativeTo(parent);
         setResizable(false);
         setDefaultCloseOperation(JDialog.DISPOSE_ON_CLOSE);
@@ -46,7 +44,7 @@ public class StaffFormPanel extends JDialog {
         if (mode == Mode.CREATE) {
             setTitle("Register New Staff");
         } else {
-            setTitle("Edit Staff");
+            setTitle("Edit Staff Information");
         }
         
         initComponents();
@@ -80,6 +78,13 @@ public class StaffFormPanel extends JDialog {
         stylePasswordField(passwordField);
         styleComboBox(roleComboBox);
         
+        // Add placeholder hints
+        fullNameField.setToolTipText("Enter full name (e.g., John Doe)");
+        emailField.setToolTipText("Enter valid email (e.g., john@example.com)");
+        phoneField.setToolTipText("Enter phone number (10-12 digits)");
+        usernameField.setToolTipText("Enter unique username");
+        passwordField.setToolTipText("Enter password (min 6 characters)");
+        
         usernameField.setEditable(true);
         usernameField.setBackground(Color.WHITE);
     }
@@ -91,74 +96,92 @@ public class StaffFormPanel extends JDialog {
         JPanel headerContainer = new JPanel(new BorderLayout());
         JPanel dialogHeader = new JPanel(new BorderLayout());
         dialogHeader.setBackground(NAVY_BLUE);
-        dialogHeader.setBorder(BorderFactory.createEmptyBorder(18, 25, 18, 25));
+        dialogHeader.setBorder(BorderFactory.createEmptyBorder(20, 25, 20, 25));
         
         String title = (mode == Mode.CREATE) ? "Register New Staff" : "Edit Staff Information";
         JLabel headerTitle = new JLabel(title);
-        headerTitle.setFont(new Font("Segoe UI", Font.BOLD, 16));
+        headerTitle.setFont(new Font("Segoe UI", Font.BOLD, 18));
         headerTitle.setForeground(Color.WHITE);
         dialogHeader.add(headerTitle, BorderLayout.WEST);
+        
+        JLabel headerSubtitle = new JLabel(mode == Mode.CREATE ? "Add a new staff member to the system" : "Update staff information");
+        headerSubtitle.setFont(new Font("Segoe UI", Font.PLAIN, 11));
+        headerSubtitle.setForeground(new Color(200, 200, 200));
+        dialogHeader.add(headerSubtitle, BorderLayout.SOUTH);
+        
         headerContainer.add(dialogHeader, BorderLayout.CENTER);
         
         JPanel yellowLine = new JPanel();
         yellowLine.setBackground(YELLOW);
-        yellowLine.setPreferredSize(new Dimension(500, 4));
+        yellowLine.setPreferredSize(new Dimension(520, 4));
         headerContainer.add(yellowLine, BorderLayout.SOUTH);
         add(headerContainer, BorderLayout.NORTH);
         
         // Form Panel
         JPanel formPanel = new JPanel(new GridBagLayout());
         formPanel.setBackground(Color.WHITE);
-        formPanel.setBorder(BorderFactory.createEmptyBorder(35, 50, 35, 50));
+        formPanel.setBorder(BorderFactory.createEmptyBorder(30, 40, 30, 40));
         
         GridBagConstraints gbc = new GridBagConstraints();
         gbc.fill = GridBagConstraints.HORIZONTAL;
-        gbc.insets = new Insets(10, 10, 10, 10);
+        gbc.insets = new Insets(8, 10, 8, 10);
         
         // Full Name
         gbc.gridx = 0; gbc.gridy = 0;
-        formPanel.add(createLabel("Full Name"), gbc);
+        gbc.weightx = 0.3;
+        formPanel.add(createLabel("Full Name *"), gbc);
         gbc.gridx = 1;
+        gbc.weightx = 0.7;
         formPanel.add(fullNameField, gbc);
         
         // Email
         gbc.gridx = 0; gbc.gridy = 1;
-        formPanel.add(createLabel("Email"), gbc);
+        gbc.weightx = 0.3;
+        formPanel.add(createLabel("Email *"), gbc);
         gbc.gridx = 1;
+        gbc.weightx = 0.7;
         formPanel.add(emailField, gbc);
         
         // Phone
         gbc.gridx = 0; gbc.gridy = 2;
-        formPanel.add(createLabel("Phone"), gbc);
+        gbc.weightx = 0.3;
+        formPanel.add(createLabel("Phone *"), gbc);
         gbc.gridx = 1;
+        gbc.weightx = 0.7;
         formPanel.add(phoneField, gbc);
         
         // Username
         gbc.gridx = 0; gbc.gridy = 3;
-        formPanel.add(createLabel("Username"), gbc);
+        gbc.weightx = 0.3;
+        formPanel.add(createLabel("Username *"), gbc);
         gbc.gridx = 1;
+        gbc.weightx = 0.7;
         formPanel.add(usernameField, gbc);
         
         // Password
         gbc.gridx = 0; gbc.gridy = 4;
-        formPanel.add(createLabel("Password"), gbc);
+        gbc.weightx = 0.3;
+        formPanel.add(createLabel("Password *"), gbc);
         gbc.gridx = 1;
+        gbc.weightx = 0.7;
         formPanel.add(passwordField, gbc);
         
         // Role
         gbc.gridx = 0; gbc.gridy = 5;
-        formPanel.add(createLabel("Role"), gbc);
+        gbc.weightx = 0.3;
+        formPanel.add(createLabel("Role *"), gbc);
         gbc.gridx = 1;
+        gbc.weightx = 0.7;
         formPanel.add(roleComboBox, gbc);
         
         add(formPanel, BorderLayout.CENTER);
         
         // Button Panel
-        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 15, 20));
+        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 15, 20));
         buttonPanel.setBackground(Color.WHITE);
         buttonPanel.setBorder(BorderFactory.createMatteBorder(1, 0, 0, 0, new Color(230, 230, 230)));
         
-        String btnText = (mode == Mode.CREATE) ? "REGISTER" : "UPDATE";
+        String btnText = (mode == Mode.CREATE) ? "REGISTER STAFF" : "UPDATE STAFF";
         Color btnColor = (mode == Mode.CREATE) ? new Color(59, 130, 246) : new Color(34, 197, 94);
         
         JButton actionBtn = createButton(btnText, btnColor);
@@ -174,37 +197,33 @@ public class StaffFormPanel extends JDialog {
     
     private JLabel createLabel(String text) {
         JLabel label = new JLabel(text);
-        label.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        label.setFont(new Font("Segoe UI", Font.BOLD, 12));
         label.setForeground(new Color(60, 60, 60));
-        label.setPreferredSize(new Dimension(100, 30));
         return label;
     }
     
     private void styleTextField(JTextField field) {
-        field.setFont(new Font("Segoe UI", Font.PLAIN, 13));
         field.setBorder(BorderFactory.createCompoundBorder(
             BorderFactory.createLineBorder(new Color(200, 200, 200), 1),
             BorderFactory.createEmptyBorder(10, 12, 10, 12)
         ));
-        field.setPreferredSize(new Dimension(300, 40));
+        field.setPreferredSize(new Dimension(300, 42));
     }
     
     private void stylePasswordField(JPasswordField field) {
-        field.setFont(new Font("Segoe UI", Font.PLAIN, 13));
         field.setBorder(BorderFactory.createCompoundBorder(
             BorderFactory.createLineBorder(new Color(200, 200, 200), 1),
             BorderFactory.createEmptyBorder(10, 12, 10, 12)
         ));
-        field.setPreferredSize(new Dimension(300, 40));
+        field.setPreferredSize(new Dimension(300, 42));
     }
     
     private void styleComboBox(JComboBox<String> combo) {
-        combo.setFont(new Font("Segoe UI", Font.PLAIN, 13));
         combo.setBorder(BorderFactory.createCompoundBorder(
             BorderFactory.createLineBorder(new Color(200, 200, 200), 1),
             BorderFactory.createEmptyBorder(10, 12, 10, 12)
         ));
-        combo.setPreferredSize(new Dimension(300, 40));
+        combo.setPreferredSize(new Dimension(300, 42));
         combo.setBackground(Color.WHITE);
     }
     
@@ -215,10 +234,8 @@ public class StaffFormPanel extends JDialog {
         button.setForeground(Color.WHITE);
         button.setFocusPainted(false);
         button.setBorderPainted(false);
-        button.setContentAreaFilled(true);
-        button.setOpaque(true);
         button.setCursor(new Cursor(Cursor.HAND_CURSOR));
-        button.setBorder(BorderFactory.createEmptyBorder(10, 25, 10, 25));
+        button.setBorder(BorderFactory.createEmptyBorder(10, 30, 10, 30));
         
         button.addMouseListener(new java.awt.event.MouseAdapter() {
             public void mouseEntered(java.awt.event.MouseEvent e) {
@@ -238,14 +255,17 @@ public class StaffFormPanel extends JDialog {
         phoneField.setText(user.getPhone());
         usernameField.setText(user.getUsername());
         passwordField.setText(user.getPassword());
-        originalUsername = user.getUsername(); // Store original username for duplicate check
+        originalUsername = user.getUsername();
         
-        String role = user.getRoleDisplayName();
-        if (role.equals("Manager")) {
+        // Store original role for update mode
+        if (user.getRole() == UserRole.MANAGER) {
+            originalRole = "MANAGER";
             roleComboBox.setSelectedItem("MANAGER");
-        } else if (role.equals("Counter Staff")) {
+        } else if (user.getRole() == UserRole.COUNTER_STAFF) {
+            originalRole = "COUNTER STAFF";
             roleComboBox.setSelectedItem("COUNTER STAFF");
         } else {
+            originalRole = "TECHNICIAN";
             roleComboBox.setSelectedItem("TECHNICIAN");
         }
     }
@@ -265,24 +285,20 @@ public class StaffFormPanel extends JDialog {
     }
     
     private String validateFields() {
-        // Check all required fields cannot be empty
-    	if (getFullName().isEmpty() && getEmail().isEmpty() && getPhone().isEmpty() && getUsername().isEmpty() && getPassword().isEmpty()) {
-            return "Please fill all required fields.";
-    	}
         if (getFullName().isEmpty()) {
-            return "Full Name cannot be empty.";
+            return "Full Name is required.";
         }
         if (getEmail().isEmpty()) {
-            return "Email cannot be empty.";
+            return "Email is required.";
         }
         if (getPhone().isEmpty()) {
-            return "Phone cannot be empty.";
+            return "Phone number is required.";
         }
         if (getUsername().isEmpty()) {
-            return "Username cannot be empty.";
+            return "Username is required.";
         }
         if (getPassword().isEmpty()) {
-            return "Password cannot be empty.";
+            return "Password is required.";
         }
         if (getPassword().length() < 6) {
             return "Password must be at least 6 characters.";
@@ -298,31 +314,37 @@ public class StaffFormPanel extends JDialog {
     
     private void handleCreate() {
         if (userDAO.findByUsername(getUsername()) != null) {
-            JOptionPane.showMessageDialog(this, "Username already exists.", "Error", JOptionPane.ERROR_MESSAGE);
+            JOptionPane.showMessageDialog(this, 
+                "Username '" + getUsername() + "' already exists.\nPlease choose a different username.", 
+                "Error", 
+                JOptionPane.ERROR_MESSAGE);
             return;
         }
         
         User newUser = createUserFromForm();
         if (newUser != null && userDAO.save(newUser)) {
             JOptionPane.showMessageDialog(this, 
-                "Staff registered successfully!\n\nID: " + newUser.getId(), 
+                String.format("Staff registered successfully!\n\nID: %s\nName: %s\nRole: %s", 
+                    newUser.getId(), newUser.getFullName(), newUser.getRoleDisplayName()), 
                 "Success", 
                 JOptionPane.INFORMATION_MESSAGE);
             if (onSuccess != null) onSuccess.run();
             dispose();
         } else {
-            JOptionPane.showMessageDialog(this, "Registration failed.", "Error", JOptionPane.ERROR_MESSAGE);
+            JOptionPane.showMessageDialog(this, "Registration failed. Please try again.", "Error", JOptionPane.ERROR_MESSAGE);
         }
     }
     
     private void handleUpdate() {
         String newUsername = getUsername();
         String newRole = getRole();
-        String originalRole = getOriginalRoleString();
         
         // Check if username changed and already exists
         if (!newUsername.equals(originalUsername) && userDAO.findByUsername(newUsername) != null) {
-            JOptionPane.showMessageDialog(this, "Username already exists. Please choose a different username.", "Update Error", JOptionPane.ERROR_MESSAGE);
+            JOptionPane.showMessageDialog(this, 
+                "Username '" + newUsername + "' already exists.\nPlease choose a different username.", 
+                "Update Error", 
+                JOptionPane.ERROR_MESSAGE);
             return;
         }
         
@@ -343,16 +365,16 @@ public class StaffFormPanel extends JDialog {
                     JOptionPane.YES_NO_OPTION,
                     JOptionPane.WARNING_MESSAGE);
             
-            // If user clicks NO or closes dialog, cancel the update
             if (confirm != JOptionPane.YES_OPTION) {
-            	return;
+                return;
             }
             
             // Keep original role
             newRole = originalRole;
             roleComboBox.setSelectedItem(originalRole);
         }
-
+        
+        // Update user fields
         user.setFullName(getFullName());
         user.setEmail(getEmail());
         user.setPhone(getPhone());
@@ -369,24 +391,17 @@ public class StaffFormPanel extends JDialog {
         }
         
         if (userDAO.update(user)) {
-            JOptionPane.showMessageDialog(this, "Staff updated successfully!", "Success", JOptionPane.INFORMATION_MESSAGE);
+            JOptionPane.showMessageDialog(this, 
+                "Staff information updated successfully!", 
+                "Success", 
+                JOptionPane.INFORMATION_MESSAGE);
             if (onSuccess != null) onSuccess.run();
             dispose();
         } else {
-            JOptionPane.showMessageDialog(this, "Failed to update staff.", "Error", JOptionPane.ERROR_MESSAGE);
+            JOptionPane.showMessageDialog(this, "Failed to update staff information.", "Error", JOptionPane.ERROR_MESSAGE);
         }
     }
     
-    private String getOriginalRoleString() {
-        if (user.getRole() == UserRole.MANAGER) {
-            return "MANAGER";
-        } else if (user.getRole() == UserRole.COUNTER_STAFF) {
-            return "COUNTER STAFF";
-        } else {
-            return "TECHNICIAN";
-        }
-    }
-
     private String getRoleDisplayName(String role) {
         if (role.equals("MANAGER")) {
             return "Manager";
@@ -408,53 +423,11 @@ public class StaffFormPanel extends JDialog {
         }
     }
     
-    // ===== GETTERS & SETTERS =====
-    
-    public String getFullName() {
-        return fullNameField.getText().trim();
-    }
-    
-    public void setFullName(String fullName) {
-        fullNameField.setText(fullName);
-    }
-    
-    public String getEmail() {
-        return emailField.getText().trim();
-    }
-    
-    public void setEmail(String email) {
-        emailField.setText(email);
-    }
-    
-    public String getPhone() {
-        return phoneField.getText().trim();
-    }
-    
-    public void setPhone(String phone) {
-        phoneField.setText(phone);
-    }
-    
-    public String getUsername() {
-        return usernameField.getText().trim();
-    }
-    
-    public void setUsername(String username) {
-        usernameField.setText(username);
-    }
-    
-    public String getPassword() {
-        return new String(passwordField.getPassword());
-    }
-    
-    public void setPassword(String password) {
-        passwordField.setText(password);
-    }
-    
-    public String getRole() {
-        return (String) roleComboBox.getSelectedItem();
-    }
-    
-    public void setRole(String role) {
-        roleComboBox.setSelectedItem(role);
-    }
+    // Getters
+    public String getFullName() { return fullNameField.getText().trim(); }
+    public String getEmail() { return emailField.getText().trim(); }
+    public String getPhone() { return phoneField.getText().trim(); }
+    public String getUsername() { return usernameField.getText().trim(); }
+    public String getPassword() { return new String(passwordField.getPassword()); }
+    public String getRole() { return (String) roleComboBox.getSelectedItem(); }
 }

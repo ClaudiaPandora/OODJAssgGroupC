@@ -34,7 +34,10 @@ public class ServiceDAO implements FileDAO<Service> {
     
     public double getPrice(ServiceType type) {
         Service service = findByType(type);
-        return service != null ? service.getPrice() : 0.0;
+        if (service == null) {
+            return type == ServiceType.MAJOR ? 300.0 : 100.0;
+        }
+        return service.getPrice();
     }
     
     @Override

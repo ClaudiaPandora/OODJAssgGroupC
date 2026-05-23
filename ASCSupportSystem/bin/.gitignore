@@ -1,10 +1,2 @@
-/Main.class
-/TestData.class
-/dao/
-/data/
-/enums/
-/exceptions/
-/models/
-/services/
 /ui/
-/utils/
+/data/

@@ -5,62 +5,53 @@ public class Feedback {
     private String appointmentId;
     private String technicianId;
     private String content;
-    private int rating;
+    private String date;  // Add this field
     
-    public Feedback() {
-        this.rating = 5;
-    }
+    // Constructors
+    public Feedback() {}
     
-    public Feedback(String id, String appointmentId, String technicianId, String content, int rating) {
+    public Feedback(String id, String appointmentId, String technicianId, String content, String date) {
         this.id = id;
         this.appointmentId = appointmentId;
         this.technicianId = technicianId;
         this.content = content;
-        this.rating = rating;
+        this.date = date;
     }
     
-    public String getId() {
-        return id;
-    }
+    // Getters and Setters
+    public String getId() { return id; }
+    public void setId(String id) { this.id = id; }
     
-    public void setId(String id) {
-        this.id = id;
-    }
+    public String getAppointmentId() { return appointmentId; }
+    public void setAppointmentId(String appointmentId) { this.appointmentId = appointmentId; }
     
-    public String getAppointmentId() {
-        return appointmentId;
-    }
+    public String getTechnicianId() { return technicianId; }
+    public void setTechnicianId(String technicianId) { this.technicianId = technicianId; }
     
-    public void setAppointmentId(String appointmentId) {
-        this.appointmentId = appointmentId;
-    }
+    public String getContent() { return content; }
+    public void setContent(String content) { this.content = content; }
     
-    public String getTechnicianId() {
-        return technicianId;
-    }
+    public String getDate() { return date; }  // Add getter
+    public void setDate(String date) { this.date = date; }  // Add setter
     
-    public void setTechnicianId(String technicianId) {
-        this.technicianId = technicianId;
-    }
-    
-    public String getContent() {
-        return content;
-    }
-    
-    public void setContent(String content) {
-        this.content = content;
-    }
-    
-    public int getRating() {
-        return rating;
-    }
-    
-    public void setRating(int rating) {
-        this.rating = rating;
+    // For file storage
+    public static Feedback fromString(String line) {
+        String[] parts = line.split("\\|");
+        if (parts.length >= 5) {
+            Feedback note = new Feedback();
+            note.setId(parts[0]);
+            note.setAppointmentId(parts[1]);
+            note.setTechnicianId(parts[2]);
+            note.setContent(parts[3]);
+            note.setDate(parts[4]);
+            return note;
+        }
+        return null;
     }
     
     @Override
     public String toString() {
-        return id + "|" + appointmentId + "|" + technicianId + "|" + content + "|" + rating;
+        return id + "|" + appointmentId + "|" + (technicianId != null ? technicianId : "") + "|" 
+               + content + "|" + date;
     }
 }

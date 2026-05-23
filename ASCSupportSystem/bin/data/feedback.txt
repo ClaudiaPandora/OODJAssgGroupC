@@ -1,7 +1,9 @@
-F0001|A0001|T001|The technician arrived on time and fixed my car quickly. Very professional!|5
-F0002|A0002|T001|Good service but took longer than expected.|3
-F0003|A0003|T002|Excellent work! My car runs smoothly now.|5
-F0004|A0004|T002|The technician was knowledgeable and friendly.|4
-F0005|A0005|T001|Satisfied with the repair. Price was reasonable.|4
-F0006|A0006|T003|Great customer service and fast turnaround.|5
-F0007|A0007|T001|Could be better. The technician forgot to check the battery.|2
+F0001|A0001|T001|Engine oil changed, oil filter replaced, tire pressure checked|2026-01-08
+F0002|A0002|T003|Brake pads inspected, fluid topped up, test drive performed|2026-01-15
+F0003|A0003|T001|Major engine repair completed after internal wear detected. New parts installed. Advise regular servicing to prevent repeat issues.|2026-02-25
+F0004|A0004|T001|Transmission fluid and filter replaced due to degraded condition. Shifting tested smooth. Monitor for any delay in gear response.|2026-03-29
+F0005|A0005|T002|Air and cabin filters replaced due to dust buildup affecting airflow. AC checked and working well. Recommend timely filter changes.|2026-04-13
+F0006|A0008|T001|Oil leak fixed by replacing worn gasket. Leak source confirmed. No further issue found. Suggest routine seal checks.|2026-04-16
+F0007|A0009|T002|AC compressor replaced, system recharged, cooling working properly|2026-04-17
+F0008|A0012|T003|Four tires rotated, wheel alignment adjusted, balanced|2026-04-29
+F0009|A0013|T002|Suspension checked, shocks replaced, ride quality improved|2026-05-01

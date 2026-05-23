@@ -2,672 +2,840 @@ package ui.technician;
 
 import dao.AppointmentDAO;
 import dao.CommentDAO;
+import dao.PaymentDAO;
 import dao.FeedbackDAO;
 import dao.UserDAO;
-import dao.TechNoteDAO;
 import enums.AppointmentStatus;
-import enums.ServiceType;
 import models.Appointment;
 import models.Comment;
+import models.Payment;
 import models.Feedback;
-import models.TechNote;
 import models.User;
 import ui.common.BasePanel;
 import utils.DateUtils;
 
 import javax.swing.*;
+import javax.swing.border.EmptyBorder;
+import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.DefaultTableModel;
+import javax.swing.table.JTableHeader;
 import java.awt.*;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
-import java.util.List;
 import java.util.ArrayList;
-import javax.swing.table.DefaultTableCellRenderer;
-import javax.swing.table.TableCellRenderer;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 
 public class TechnicianOverviewPanel extends BasePanel {
-    
-    private static final long serialVersionUID = 1L;
-    private User currentTechnician;
-    private AppointmentDAO appointmentDAO;
-    private UserDAO userDAO;
-    private FeedbackDAO feedbackDAO;
-    private CommentDAO commentDAO;
-    private TechNoteDAO techNoteDAO;
-    
+
+    private final User currentTechnician;
+    private final AppointmentDAO appointmentDAO;
+    private final UserDAO userDAO;
+    private final CommentDAO commentDAO;
+    private final FeedbackDAO techNoteDAO;
+    private final PaymentDAO paymentDAO;
+    private JButton refreshButton;
+
     private JLabel completedJobsLabel;
-    private JLabel ongoingJobsLabel;
+    private JLabel activeJobsLabel;
     private JLabel revenueLabel;
-    private JLabel todayJobsLabel;
-    
     private JLabel avgRatingLabel;
-    private JLabel completionRateLabel;
-    private JLabel onTimeRateLabel;
+
+    private JTable priorityTable;
+    private JTable activityTable;
+    private DefaultTableModel priorityTableModel;
+    private DefaultTableModel activityTableModel;
+    private JPanel notificationsListPanel;
+    private JPanel statsPanel;
     
-    private JTable todayTable;
-    private DefaultTableModel tableModel;
-    private JPanel emptySchedulePanel;
-    private JPanel scheduleContentPanel;
-    private List<String> viewedAppointments = new ArrayList<>();
+    private Set<String> paidAppointmentIds;
     
+    private final Color CARD_BORDER = new Color(226, 232, 240);
+    private final Color LIGHT_BG = new Color(248, 250, 252);
+    private final Color TABLE_HEADER_BG = new Color(244, 246, 250);
+    private final Color ROW_SEPARATOR = new Color(231, 235, 240);
+    private final Color TABLE_SELECTION = new Color(232, 240, 254);
+    private final Color TEXT_MUTED = new Color(100, 116, 139);
+    private final Color GREEN = new Color(34, 197, 94);
+    private final Color BLUE = new Color(59, 130, 246);
+    private final Color ORANGE = new Color(234, 179, 8);
+    private final Color TEAL = new Color(16, 185, 129);
+    private final Color PURPLE = new Color(139, 92, 246);
+    private final Color PINK = new Color(236, 72, 153);
+
     public TechnicianOverviewPanel(User technician) {
         this.currentTechnician = technician;
         this.appointmentDAO = new AppointmentDAO();
         this.userDAO = new UserDAO();
-        this.feedbackDAO = new FeedbackDAO();
         this.commentDAO = new CommentDAO();
-        this.techNoteDAO = new TechNoteDAO();
+        this.techNoteDAO = new FeedbackDAO();
+        this.paymentDAO = new PaymentDAO();
+        this.paidAppointmentIds = new HashSet<>();
 
         setBackground(PANEL_BG);
         initializeComponents();
         setupLayout();
+        addEventHandlers();
         refreshDashboard();
     }
-    
+
+    private void refreshData() {
+        refreshPaidAppointmentIds();
+        refreshDashboard();
+    }
+
     @Override
     protected void initializeComponents() {
-    	this.techNoteDAO = new TechNoteDAO();
-    	
-        completedJobsLabel = createKpiLabel("0");
-        ongoingJobsLabel = createKpiLabel("0");
-        revenueLabel = createKpiLabel("RM 0");
-        todayJobsLabel = createKpiLabel("0");
-        
-        avgRatingLabel = createMetricLabel("0.0 / 5.0");
-        completionRateLabel = createMetricLabel("0%");
-        onTimeRateLabel = createMetricLabel("0%");
-        
-        tableModel = new DefaultTableModel(new String[]{
-        	    "Appointment ID", "Date & Time", "Customer", "Service", "Status", "Action"
-        }, 0) {
+        completedJobsLabel = createStatValueLabel("0");
+        activeJobsLabel = createStatValueLabel("0");
+        revenueLabel = createStatValueLabel("RM 0");
+        avgRatingLabel = createStatValueLabel("0.0");
+
+        refreshButton = createStyledButton("Refresh", GREEN);
+        refreshButton.addActionListener(e -> {
+            refreshData();
+            JOptionPane.showMessageDialog(this, "Dashboard data has been refreshed.", 
+                "Refresh Complete", JOptionPane.INFORMATION_MESSAGE);
+        });
+
+        priorityTableModel = new DefaultTableModel(
+                new String[]{"Appointment", "Date & Time", "Customer", "Service", "Status"}, 0
+        ) {
             @Override
             public boolean isCellEditable(int row, int column) {
                 return false;
             }
         };
-        
-        todayTable = new JTable(tableModel);
-        todayTable.setRowHeight(35);
-        todayTable.setFont(new Font("Segoe UI", Font.PLAIN, 12));
-        todayTable.getTableHeader().setFont(new Font("Segoe UI", Font.BOLD, 12));
-        todayTable.getTableHeader().setBackground(new Color(240, 240, 240));
-        todayTable.setSelectionBackground(new Color(0, 51, 153));
-        todayTable.setSelectionForeground(Color.WHITE);
-        todayTable.setShowGrid(true);
-        todayTable.setGridColor(new Color(220, 220, 220));
-        todayTable.getTableHeader().setReorderingAllowed(false);
-        
-        todayTable.addMouseListener(new MouseAdapter() {
+
+        activityTableModel = new DefaultTableModel(
+                new String[]{"Appointment", "Date", "Customer", "Service", "Status", "Amount"}, 0
+        ) {
             @Override
-            public void mouseClicked(MouseEvent e) {
-                int row = todayTable.rowAtPoint(e.getPoint());
-                int col = todayTable.columnAtPoint(e.getPoint());
-
-                if (row >= 0 && col == 5) {
-                    String id = (String) tableModel.getValueAt(row, 0);
-                    Appointment a = appointmentDAO.findById(id);
-                    if (a != null) {
-                        showAppointmentDetails(a);
-
-                        if (!viewedAppointments.contains(id)) {
-                            viewedAppointments.add(id);
-                        }
-                    }
-                }
+            public boolean isCellEditable(int row, int column) {
+                return false;
             }
-        });
+        };
+
+        priorityTable = createStyledTable(priorityTableModel);
+        activityTable = createStyledTable(activityTableModel);
         
-        todayTable.getColumnModel().getColumn(5).setCellRenderer(new DefaultTableCellRenderer() {
+        setupTableStyle(priorityTable, new int[]{80, 130, 150, 80, 100});
+        setupTableStyle(activityTable, new int[]{80, 90, 150, 80, 100, 100});
+
+        notificationsListPanel = new JPanel();
+        notificationsListPanel.setLayout(new BoxLayout(notificationsListPanel, BoxLayout.Y_AXIS));
+        notificationsListPanel.setBackground(Color.WHITE);
+    }
+    
+    private void setupTableStyle(JTable table, int[] columnWidths) {
+        table.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        table.setRowHeight(45);
+        table.setAutoResizeMode(JTable.AUTO_RESIZE_ALL_COLUMNS);
+        table.setFillsViewportHeight(true);
+        table.setFocusable(false);
+        table.setRowSelectionAllowed(true);
+        table.setColumnSelectionAllowed(false);
+        table.setShowVerticalLines(false);
+        table.setShowHorizontalLines(false);
+        table.setGridColor(ROW_SEPARATOR);
+        table.setIntercellSpacing(new Dimension(0, 0));
+        table.setSelectionBackground(TABLE_SELECTION);
+        table.setSelectionForeground(new Color(31, 41, 55));
+        table.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        
+        JTableHeader header = table.getTableHeader();
+        header.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        header.setBackground(TABLE_HEADER_BG);
+        header.setForeground(new Color(31, 41, 55));
+        header.setReorderingAllowed(false);
+        header.setPreferredSize(new Dimension(header.getWidth(), 42));
+        header.setBorder(BorderFactory.createMatteBorder(0, 0, 1, 0, CARD_BORDER));
+        
+        DefaultTableCellRenderer headerRenderer = new DefaultTableCellRenderer() {
             @Override
             public Component getTableCellRendererComponent(JTable table, Object value,
                     boolean isSelected, boolean hasFocus, int row, int column) {
-
-                JPanel panel = new JPanel(new FlowLayout(FlowLayout.CENTER));
-                panel.setOpaque(true);
-
-                JButton btn = new JButton("VIEW");
-
-                btn.setFont(new Font("Segoe UI", Font.BOLD, 11));
-                btn.setForeground(Color.WHITE);
-                btn.setBackground(new Color(0, 51, 153));
-                btn.setFocusPainted(false);
-                btn.setBorderPainted(false);
-                btn.setCursor(new Cursor(Cursor.HAND_CURSOR));
-
-                panel.setBackground(isSelected ? table.getSelectionBackground() : Color.WHITE);
-                panel.add(btn);
-
-                return panel;
+                JLabel label = (JLabel) super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
+                label.setBorder(BorderFactory.createEmptyBorder(0, 18, 0, 0));
+                label.setFont(new Font("Segoe UI", Font.BOLD, 12));
+                label.setBackground(TABLE_HEADER_BG);
+                return label;
             }
-        });
+        };
         
-        todayTable.getColumnModel().getColumn(4).setCellRenderer(new javax.swing.table.DefaultTableCellRenderer() {
-            @Override
-            public Component getTableCellRendererComponent(JTable table, Object value,
-                    boolean isSelected, boolean hasFocus, int row, int column) {
-                Component c = super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
-                String status = value.toString();
-                if (!isSelected) {
-                    if (status.equals("ASSIGNED")) {
-                        c.setForeground(new Color(255, 140, 0));
-                    } else if (status.equals("COMPLETED")) {
-                        c.setForeground(new Color(34, 197, 94));
-                    } else {
-                        c.setForeground(Color.GRAY);
-                    }
-                }
-                return c;
+        for (int i = 0; i < table.getColumnModel().getColumnCount(); i++) {
+            table.getColumnModel().getColumn(i).setHeaderRenderer(headerRenderer);
+            if (i < columnWidths.length) {
+                table.getColumnModel().getColumn(i).setPreferredWidth(columnWidths[i]);
             }
-        });
+        }
         
-        todayTable.getColumnModel().getColumn(0).setCellRenderer(new DefaultTableCellRenderer() {
-
-            @Override
-            public Component getTableCellRendererComponent(JTable table, Object value,
-                    boolean isSelected, boolean hasFocus, int row, int column) {
-
-                JLabel c = (JLabel) super.getTableCellRendererComponent(
-                        table, value, isSelected, hasFocus, row, column);
-
-                String appointmentId = (String) table.getValueAt(row, 0);
-                String time = String.valueOf(value);
-
-                Appointment a = appointmentDAO.findById(appointmentId);
-
-                boolean isNew24h = false;
-
-                if (a != null) {
-                    isNew24h = isWithin24Hours(a.getDate(), a.getStartTime())
-                            && !viewedAppointments.contains(appointmentId);
-                }
-
-                if (isNew24h) {
-                    c.setText("● " + time);
-                } else {
-                    c.setText(time);
-                }
-
-                if (isSelected) {
-                    c.setForeground(Color.WHITE);
-                } else {
-                    c.setForeground(Color.BLACK);
-                }
-
-                return c;
-            }
-        });
-        
-        emptySchedulePanel = new JPanel(new GridBagLayout());
-        emptySchedulePanel.setBackground(new Color(250, 250, 250));
-        
-        JLabel emptyMessage = new JLabel("No appointments scheduled recently");
-        emptyMessage.setFont(new Font("Segoe UI", Font.PLAIN, 14));
-        emptyMessage.setForeground(new Color(120, 120, 120));
-        
-        JLabel emptyHint = new JLabel("You are all caught up. Check back later for new jobs.");
-        emptyHint.setFont(new Font("Segoe UI", Font.PLAIN, 11));
-        emptyHint.setForeground(new Color(160, 160, 160));
-        
-        GridBagConstraints gbc = new GridBagConstraints();
-        gbc.gridx = 0;
-        gbc.gridy = 0;
-        emptySchedulePanel.add(emptyMessage, gbc);
-        gbc.gridy = 1;
-        emptySchedulePanel.add(emptyHint, gbc);
-        
-        scheduleContentPanel = new JPanel(new CardLayout());
-        scheduleContentPanel.setBackground(Color.WHITE);
-        scheduleContentPanel.add(emptySchedulePanel, "EMPTY");
-        
-        JScrollPane tableScrollPane = new JScrollPane(todayTable);
-        tableScrollPane.setBorder(null);
-        tableScrollPane.getViewport().setBackground(Color.WHITE);
-        scheduleContentPanel.add(tableScrollPane, "TABLE");
+        table.setDefaultRenderer(Object.class, new TableCellRenderer());
     }
-    
-    private JLabel createKpiLabel(String text) {
-        JLabel label = new JLabel(text);
-        label.setFont(new Font("Segoe UI", Font.BOLD, 28));
-        label.setForeground(NAVY_BLUE);
-        label.setHorizontalAlignment(SwingConstants.CENTER);
-        return label;
-    }
-    
-    private JLabel createMetricLabel(String text) {
-        JLabel label = new JLabel(text);
-        label.setFont(new Font("Segoe UI", Font.BOLD, 18));
-        label.setForeground(new Color(50, 50, 50));
-        label.setHorizontalAlignment(SwingConstants.CENTER);
-        return label;
-    }
-    
+
     @Override
     protected void setupLayout() {
-        setLayout(new BorderLayout(15, 15));
+        setLayout(new BorderLayout());
         setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
-        
-        add(createHeaderPanel(), BorderLayout.NORTH);
-        
+
         JPanel mainPanel = new JPanel();
         mainPanel.setLayout(new BoxLayout(mainPanel, BoxLayout.Y_AXIS));
         mainPanel.setBackground(PANEL_BG);
-        
-        mainPanel.add(createKpiRow());
+
+        mainPanel.add(createHeaderPanel());
         mainPanel.add(Box.createVerticalStrut(15));
-        mainPanel.add(createMetricsPanel());
+        statsPanel = new JPanel(new GridLayout(1, 4, 12, 0));
+        statsPanel.setBackground(PANEL_BG);
+        statsPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 75));
+        statsPanel.setPreferredSize(new Dimension(0, 75));
+        mainPanel.add(statsPanel);        mainPanel.add(Box.createVerticalStrut(15));
+        mainPanel.add(createMiddlePanel());
         mainPanel.add(Box.createVerticalStrut(15));
-        mainPanel.add(createSchedulePanel());
-        
+        mainPanel.add(createRecentActivityPanel());
+
         JScrollPane scrollPane = new JScrollPane(mainPanel);
         scrollPane.setBorder(null);
         scrollPane.getViewport().setBackground(PANEL_BG);
-        scrollPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED);
-        scrollPane.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
-        
+        scrollPane.getVerticalScrollBar().setUnitIncrement(16);
+        scrollPane.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
+
         add(scrollPane, BorderLayout.CENTER);
     }
-    
+
     private JPanel createHeaderPanel() {
-        JPanel header = new JPanel(new BorderLayout());
-        header.setBackground(PANEL_BG);
-        header.setBorder(BorderFactory.createEmptyBorder(0, 0, 10, 0));
+        JPanel headerPanel = new JPanel(new BorderLayout());
+        headerPanel.setBackground(PANEL_BG);
+        headerPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 40));
+        headerPanel.setPreferredSize(new Dimension(0, 40));
         
         JLabel titleLabel = new JLabel("My Dashboard");
-        titleLabel.setFont(new Font("Segoe UI", Font.BOLD, 24));
+        titleLabel.setFont(new Font("Segoe UI", Font.BOLD, 23));
         titleLabel.setForeground(NAVY_BLUE);
+        titleLabel.setBorder(BorderFactory.createEmptyBorder(-2, 0, 0, 0));
+        headerPanel.add(titleLabel, BorderLayout.WEST);
+        
+        JPanel rightPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
+        rightPanel.setBackground(PANEL_BG);
         
         JLabel dateLabel = new JLabel(DateUtils.getCurrentDate());
-        dateLabel.setFont(new Font("Segoe UI", Font.PLAIN, 12));
-        dateLabel.setForeground(new Color(100, 100, 100));
-        
-        JLabel liveLabel = new JLabel("LIVE");
-        liveLabel.setFont(new Font("Segoe UI", Font.BOLD, 11));
-        liveLabel.setForeground(new Color(34, 197, 94));
-        
-        JPanel rightPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
-        rightPanel.setBackground(PANEL_BG);
-        rightPanel.add(liveLabel);
+        dateLabel.setFont(new Font("Segoe UI", Font.PLAIN, 11));
+        dateLabel.setForeground(TEXT_MUTED);
         rightPanel.add(dateLabel);
         
-        header.add(titleLabel, BorderLayout.WEST);
-        header.add(rightPanel, BorderLayout.EAST);
+        rightPanel.add(refreshButton);
         
-        return header;
+        headerPanel.add(rightPanel, BorderLayout.EAST);
+        
+        return headerPanel;
     }
     
-    private JPanel createKpiRow() {
-        JPanel row = new JPanel(new GridLayout(1, 4, 15, 0));
-        row.setBackground(PANEL_BG);
-        row.setOpaque(false);
-        
-        row.add(createKpiCard("Completed Jobs", completedJobsLabel, "Total completed appointments"));
-        row.add(createKpiCard("Ongoing Tasks", ongoingJobsLabel, "Currently in progress"));
-        row.add(createKpiCard("Revenue", revenueLabel, "From completed jobs"));
-        row.add(createKpiCard("Today's Jobs", todayJobsLabel, "Scheduled for today"));
-        
-        return row;
-    }
-    
-    private JPanel createKpiCard(String title, JLabel valueLabel, String description) {
-        JPanel card = new JPanel(new BorderLayout());
-        card.setBackground(Color.WHITE);
-        card.setBorder(BorderFactory.createCompoundBorder(
-            BorderFactory.createLineBorder(new Color(200, 200, 200), 1),
-            BorderFactory.createEmptyBorder(15, 15, 15, 15)
-        ));
-        
-        JLabel titleLabel = new JLabel(title);
-        titleLabel.setFont(new Font("Segoe UI", Font.BOLD, 13));
-        titleLabel.setForeground(new Color(80, 80, 80));
-        
-        JPanel valuePanel = new JPanel(new FlowLayout(FlowLayout.CENTER));
-        valuePanel.setBackground(Color.WHITE);
-        valuePanel.add(valueLabel);
-        
-        JLabel descLabel = new JLabel(description);
-        descLabel.setFont(new Font("Segoe UI", Font.PLAIN, 10));
-        descLabel.setForeground(new Color(120, 120, 120));
-        descLabel.setHorizontalAlignment(SwingConstants.CENTER);
-        
-        card.add(titleLabel, BorderLayout.NORTH);
-        card.add(valuePanel, BorderLayout.CENTER);
-        card.add(descLabel, BorderLayout.SOUTH);
-        
-        return card;
-    }
-    
-    private JPanel createMetricsPanel() {
-        JPanel panel = new JPanel(new GridLayout(1, 3, 15, 0));
+    private JPanel createStatsPanel() {
+        JPanel panel = new JPanel(new GridLayout(1, 4, 12, 0));
         panel.setBackground(PANEL_BG);
-        panel.setOpaque(false);
+        panel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 75));
+        panel.setPreferredSize(new Dimension(0, 75));
         
-        JPanel ratingCard = new JPanel(new BorderLayout());
-        ratingCard.setBackground(Color.WHITE);
-        ratingCard.setBorder(BorderFactory.createCompoundBorder(
-            BorderFactory.createLineBorder(new Color(200, 200, 200), 1),
-            BorderFactory.createEmptyBorder(15, 15, 15, 15)
-        ));
-        
-        JLabel ratingTitle = new JLabel("Customer Rating");
-        ratingTitle.setFont(new Font("Segoe UI", Font.BOLD, 13));
-        ratingTitle.setForeground(new Color(80, 80, 80));
-        
-        JPanel ratingCenter = new JPanel();
-        ratingCenter.setBackground(Color.WHITE);
-        ratingCenter.add(avgRatingLabel);
-        
-        ratingCard.add(ratingTitle, BorderLayout.NORTH);
-        ratingCard.add(ratingCenter, BorderLayout.CENTER);
-        
-        JPanel completionCard = new JPanel(new BorderLayout());
-        completionCard.setBackground(Color.WHITE);
-        completionCard.setBorder(BorderFactory.createCompoundBorder(
-            BorderFactory.createLineBorder(new Color(200, 200, 200), 1),
-            BorderFactory.createEmptyBorder(15, 15, 15, 15)
-        ));
-        
-        JLabel completionTitle = new JLabel("Completion Rate");
-        completionTitle.setFont(new Font("Segoe UI", Font.BOLD, 13));
-        completionTitle.setForeground(new Color(80, 80, 80));
-        
-        JPanel completionCenter = new JPanel();
-        completionCenter.setBackground(Color.WHITE);
-        completionCenter.add(completionRateLabel);
-        
-        completionCard.add(completionTitle, BorderLayout.NORTH);
-        completionCard.add(completionCenter, BorderLayout.CENTER);
-        
-        JPanel onTimeCard = new JPanel(new BorderLayout());
-        onTimeCard.setBackground(Color.WHITE);
-        onTimeCard.setBorder(BorderFactory.createCompoundBorder(
-            BorderFactory.createLineBorder(new Color(200, 200, 200), 1),
-            BorderFactory.createEmptyBorder(15, 15, 15, 15)
-        ));
-        
-        JLabel onTimeTitle = new JLabel("On-Time Rate");
-        onTimeTitle.setFont(new Font("Segoe UI", Font.BOLD, 13));
-        onTimeTitle.setForeground(new Color(80, 80, 80));
-        
-        JPanel onTimeCenter = new JPanel();
-        onTimeCenter.setBackground(Color.WHITE);
-        onTimeCenter.add(onTimeRateLabel);
-        
-        onTimeCard.add(onTimeTitle, BorderLayout.NORTH);
-        onTimeCard.add(onTimeCenter, BorderLayout.CENTER);
-        
-        panel.add(ratingCard);
-        panel.add(completionCard);
-        panel.add(onTimeCard);
+        refreshStats(panel);
         
         return panel;
     }
     
-    private JPanel createSchedulePanel() {
-        JPanel panel = new JPanel(new BorderLayout());
-        panel.setBackground(Color.WHITE);
-        panel.setBorder(BorderFactory.createCompoundBorder(
-            BorderFactory.createLineBorder(new Color(200, 200, 200), 1),
-            BorderFactory.createEmptyBorder(10, 10, 10, 10)
+    private void refreshStats(JPanel panel) {
+        panel.removeAll();
+        
+        List<Appointment> allAppointments = appointmentDAO.findByTechnicianId(currentTechnician.getId());
+        String today = DateUtils.getCurrentDate();
+        
+        List<Appointment> todayAppointments = new ArrayList<>();
+        for (Appointment a : allAppointments) {
+            if (a.getDate() != null && a.getDate().equals(today)) {
+                todayAppointments.add(a);
+            }
+        }
+        
+        int ongoingCount = 0, completedCount = 0;
+        double revenue = 0;
+        
+        List<Payment> payments = paymentDAO.readAll();
+        Set<String> paidAppointmentIds = new HashSet<>();
+        
+        for (Payment p : payments) {
+            paidAppointmentIds.add(p.getAppointmentId());
+        }
+        
+        for (Appointment a : todayAppointments) {
+            if (a.getStatus() == AppointmentStatus.ASSIGNED) ongoingCount++;
+            if (a.getStatus() == AppointmentStatus.COMPLETED) completedCount++;
+            if (paidAppointmentIds.contains(a.getId())) {
+                revenue += getPaymentAmount(a);
+            }
+        }
+        
+        panel.add(createStatCard("Active Jobs", String.valueOf(ongoingCount), null, BLUE));
+        panel.add(createStatCard("Completed Jobs", String.valueOf(completedCount), null, GREEN));
+        panel.add(createStatCard("Revenue", String.format("RM %.0f", revenue), null, TEAL));
+        panel.add(createStatCard("Avg Rating", String.format("%.1f", calculateAverageRating()), null, ORANGE));
+        
+        panel.revalidate();
+        panel.repaint();
+    }
+    
+    private JPanel createStatCard(String label, String value, String subValue, Color accentColor) {
+        JPanel card = new JPanel(new BorderLayout());
+        card.setBackground(Color.WHITE);
+        card.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createLineBorder(CARD_BORDER, 1),
+            BorderFactory.createEmptyBorder(0, 0, 0, 0)
         ));
         
-        JPanel header = new JPanel(new BorderLayout());
-        header.setBackground(Color.WHITE);
-        header.setBorder(BorderFactory.createEmptyBorder(5, 5, 10, 5));
+        JPanel accentBar = new JPanel();
+        accentBar.setBackground(accentColor);
+        accentBar.setPreferredSize(new Dimension(4, 0));
+        card.add(accentBar, BorderLayout.WEST);
         
-        JLabel titleLabel = new JLabel("Recent Jobs");
-        titleLabel.setFont(new Font("Segoe UI", Font.BOLD, 16));
-        titleLabel.setForeground(NAVY_BLUE);
+        JPanel content = new JPanel();
+        content.setLayout(new BoxLayout(content, BoxLayout.Y_AXIS));
+        content.setBackground(Color.WHITE);
+        content.setBorder(BorderFactory.createEmptyBorder(8, 12, 8, 12));
         
-        JButton viewAllBtn = new JButton("View All Jobs");
-        viewAllBtn.setFont(new Font("Segoe UI", Font.PLAIN, 11));
-        viewAllBtn.setBackground(NAVY_BLUE);
-        viewAllBtn.setForeground(Color.WHITE);
-        viewAllBtn.setFocusPainted(false);
-        viewAllBtn.setBorderPainted(false);
-        viewAllBtn.setCursor(new Cursor(Cursor.HAND_CURSOR));
-        viewAllBtn.addActionListener(e -> {
+        JLabel valueText = new JLabel(value);
+        valueText.setFont(new Font("Segoe UI", Font.BOLD, 22));
+        valueText.setForeground(accentColor);
+        valueText.setAlignmentX(Component.LEFT_ALIGNMENT);
+        content.add(valueText);
+        content.add(Box.createVerticalStrut(2));
+        
+        JLabel labelText = new JLabel(label);
+        labelText.setFont(new Font("Segoe UI", Font.PLAIN, 10));
+        labelText.setForeground(TEXT_MUTED);
+        labelText.setAlignmentX(Component.LEFT_ALIGNMENT);
+        content.add(labelText);
+        
+        if (subValue != null && !subValue.isEmpty()) {
+            content.add(Box.createVerticalStrut(2));
+            JLabel subText = new JLabel(subValue);
+            subText.setFont(new Font("Segoe UI", Font.PLAIN, 9));
+            subText.setForeground(TEXT_MUTED);
+            subText.setAlignmentX(Component.LEFT_ALIGNMENT);
+            content.add(subText);
+        }
+        
+        card.add(content, BorderLayout.CENTER);
+        
+        // Update the label references
+        if (label.equals("Active Jobs")) activeJobsLabel = valueText;
+        else if (label.equals("Completed Jobs")) completedJobsLabel = valueText;
+        else if (label.equals("Revenue")) revenueLabel = valueText;
+        else if (label.equals("Avg Rating")) avgRatingLabel = valueText;
+        
+        return card;
+    }
+
+    private JPanel createMiddlePanel() {
+        JPanel panel = new JPanel(new GridLayout(1, 2, 15, 0));
+        panel.setBackground(PANEL_BG);
+        panel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 300));
+        panel.setPreferredSize(new Dimension(0, 300));
+
+        panel.add(createPriorityJobsPanel());
+        panel.add(createNotificationsPanel());
+        return panel;
+    }
+
+    private JPanel createPriorityJobsPanel() {
+        JPanel panel = createCardPanel("Priority Jobs");
+        
+        JScrollPane scrollPane = new JScrollPane(priorityTable);
+        scrollPane.setBorder(BorderFactory.createEmptyBorder());
+        scrollPane.getViewport().setBackground(Color.WHITE);
+        panel.add(scrollPane, BorderLayout.CENTER);
+
+        JButton viewAllButton = createSecondaryButton("View All Jobs", BLUE);
+        viewAllButton.addActionListener(e -> {
             JFrame frame = (JFrame) SwingUtilities.getWindowAncestor(this);
             if (frame instanceof ui.dashboard.DashboardFrame) {
                 ((ui.dashboard.DashboardFrame) frame).switchToPanel("JOBS");
             }
         });
+
+        JPanel footer = new JPanel(new FlowLayout(FlowLayout.RIGHT, 12, 10));
+        footer.setBackground(Color.WHITE);
+        footer.add(viewAllButton);
+        panel.add(footer, BorderLayout.SOUTH);
+
+        return panel;
+    }
+
+    private JPanel createNotificationsPanel() {
+        JPanel panel = createCardPanel("Notifications");
+        JScrollPane scrollPane = new JScrollPane(notificationsListPanel);
+        scrollPane.setBorder(BorderFactory.createEmptyBorder());
+        scrollPane.getViewport().setBackground(Color.WHITE);
+        scrollPane.getVerticalScrollBar().setUnitIncrement(12);
+        panel.add(scrollPane, BorderLayout.CENTER);
+        return panel;
+    }
+
+    private JPanel createRecentActivityPanel() {
+        JPanel panel = createCardPanel("Recent Activity");
+        panel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 320));
+        panel.setPreferredSize(new Dimension(0, 320));
         
-        header.add(titleLabel, BorderLayout.WEST);
-        header.add(viewAllBtn, BorderLayout.EAST);
-        
-        panel.add(header, BorderLayout.NORTH);
-        panel.add(scheduleContentPanel, BorderLayout.CENTER);
+        JScrollPane scrollPane = new JScrollPane(activityTable);
+        scrollPane.setBorder(BorderFactory.createEmptyBorder());
+        scrollPane.getViewport().setBackground(Color.WHITE);
+        panel.add(scrollPane, BorderLayout.CENTER);
         
         return panel;
     }
-    
-    private void refreshDashboard() {
-        List<Appointment> allAppointments = appointmentDAO.findByTechnicianId(currentTechnician.getId());
-        String today = DateUtils.getCurrentDate();
-        
-        int totalToday = 0;
-        int ongoingCount = 0;
-        int completedCount = 0;
-        double revenue = 0;
-        List<Appointment> todayAppointments = new ArrayList<>();
-        
-        for (Appointment a : allAppointments) {
-        	if (a.getDate() != null) {
-        	    if (DateUtils.isWithinLast7Days(a.getDate())) {
-        	        todayAppointments.add(a);
-        	    }
 
-        	    if (a.getDate().equals(DateUtils.getCurrentDate())) {
-        	        totalToday++;
-        	    }
-        	}
-        	
-            if (a.getStatus() == AppointmentStatus.ASSIGNED) {
-                ongoingCount++;
-            }
-            if (a.getStatus() == AppointmentStatus.COMPLETED) {
-                completedCount++;
-                revenue += a.getAmount();
-            }
-            if (a.getStatus() == AppointmentStatus.PAID) {
-                revenue += a.getAmount();
-            }
-        }
-        
-        completedJobsLabel.setText(String.valueOf(completedCount));
-        ongoingJobsLabel.setText(String.valueOf(ongoingCount));
-        revenueLabel.setText(String.format("RM %.0f", revenue));
-        todayJobsLabel.setText(String.valueOf(totalToday));
-        
-        calculatePerformanceMetrics(allAppointments);
-        updateScheduleTable(todayAppointments);
+    private JPanel createCardPanel(String title) {
+        JPanel panel = new JPanel(new BorderLayout());
+        panel.setBackground(Color.WHITE);
+        panel.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(CARD_BORDER, 1),
+                BorderFactory.createEmptyBorder(0, 0, 0, 0)
+        ));
+
+        JPanel header = new JPanel(new BorderLayout());
+        header.setBackground(LIGHT_BG);
+        header.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createMatteBorder(0, 0, 1, 0, CARD_BORDER),
+                BorderFactory.createEmptyBorder(12, 16, 12, 16)
+        ));
+
+        JLabel titleLabel = new JLabel(title);
+        titleLabel.setFont(new Font("Segoe UI", Font.BOLD, 14));
+        titleLabel.setForeground(NAVY_BLUE);
+        header.add(titleLabel, BorderLayout.WEST);
+
+        panel.add(header, BorderLayout.NORTH);
+        return panel;
+    }
+
+    private JLabel createStatValueLabel(String text) {
+        JLabel label = new JLabel(text);
+        label.setFont(new Font("Segoe UI", Font.BOLD, 24));
+        label.setForeground(new Color(31, 41, 55));
+        return label;
+    }
+
+    private JTable createStyledTable(DefaultTableModel model) {
+        JTable table = new JTable(model);
+        table.setRowHeight(40);
+        table.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        table.setBackground(Color.WHITE);
+        table.setForeground(Color.BLACK);
+        table.setSelectionBackground(TABLE_SELECTION);
+        table.setSelectionForeground(new Color(31, 41, 55));
+        table.setShowGrid(false);
+        table.setIntercellSpacing(new Dimension(0, 0));
+        table.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        return table;
+    }
+
+    private JButton createPrimaryButton(String text) {
+        return createStyledButton(text, NAVY_BLUE);
     }
     
-    private void calculatePerformanceMetrics(List<Appointment> appointments) {
-        List<Comment> allComments = commentDAO.readAll();
+    private JButton createSecondaryButton(String text, Color color) {
+        JButton button = new JButton(text);
+        button.setFont(new Font("Segoe UI", Font.BOLD, 11));
+        button.setBackground(color);
+        button.setForeground(Color.WHITE);
+        button.setFocusPainted(false);
+        button.setBorderPainted(false);
+        button.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        button.setBorder(BorderFactory.createEmptyBorder(8, 16, 8, 16));
+        button.setPreferredSize(new Dimension(110, 32));
+        
+        button.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseEntered(MouseEvent e) {
+                button.setBackground(color.darker());
+            }
+            @Override
+            public void mouseExited(MouseEvent e) {
+                button.setBackground(color);
+            }
+        });
+        
+        return button;
+    }
+    
+    private JButton createStyledButton(String text, Color color) {
+        JButton button = new JButton(text);
+        button.setFont(new Font("Segoe UI", Font.BOLD, 11));
+        button.setBackground(color);
+        button.setForeground(Color.WHITE);
+        button.setFocusPainted(false);
+        button.setBorderPainted(false);
+        button.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        button.setBorder(BorderFactory.createEmptyBorder(8, 16, 8, 16));
+        button.setPreferredSize(new Dimension(90, 34));
+        
+        button.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseEntered(MouseEvent e) {
+                button.setBackground(color.darker());
+            }
+            @Override
+            public void mouseExited(MouseEvent e) {
+                button.setBackground(color);
+            }
+        });
+        
+        return button;
+    }
+
+    private void refreshPaidAppointmentIds() {
+        paidAppointmentIds.clear();
+        for (Payment payment : paymentDAO.readAll()) {
+            paidAppointmentIds.add(payment.getAppointmentId());
+        }
+    }
+    
+    private String getDisplayStatus(Appointment appointment) {
+        if (paidAppointmentIds.contains(appointment.getId())) {
+            return "COMPLETED";
+        }
+        return appointment.getStatus().toString();
+    }
+    
+    private boolean isPaid(String appointmentId) {
+        return paidAppointmentIds.contains(appointmentId);
+    }
+    
+    private double getPaymentAmount(Appointment appointment) {
+        for (Payment payment : paymentDAO.readAll()) {
+            if (payment.getAppointmentId().equals(appointment.getId())) {
+                return payment.getAmount();
+            }
+        }
+        return appointment.getAmount();
+    }
+
+    private void refreshDashboard() {
+        refreshPaidAppointmentIds();
+        
+        refreshStats(statsPanel);
+        
+        List<Appointment> appointments = appointmentDAO.findByTechnicianId(currentTechnician.getId());
+
+        updatePriorityTable(appointments);
+        updateRecentActivityTable(appointments);
+        updateNotifications(appointments);
+    }
+    
+    private double calculateAverageRating() {
         int totalRating = 0;
         int ratingCount = 0;
-        
-        for (Comment c : allComments) {
-            if (c.getTechnicianId() != null && c.getTechnicianId().equals(currentTechnician.getId())) {
-                try {
-                    totalRating += Integer.parseInt(c.getContent());
+
+        for (Comment comment : commentDAO.readAll()) {
+            // Only count comments for this technician
+            if (currentTechnician.getId().equals(comment.getTechnicianId())) {
+                // Only count valid ratings (1-5), exclude 0
+                int rating = comment.getRating();
+                if (rating >= 1 && rating <= 5) {
+                    totalRating += rating;
                     ratingCount++;
-                } catch (Exception e) {
                 }
             }
         }
-        
-        double avgRating = ratingCount > 0 ? (double) totalRating / ratingCount : 0;
-        avgRatingLabel.setText(String.format("%.1f / 5.0", avgRating));
-        
-        int totalAssigned = 0;
-        int totalCompleted = 0;
-        for (Appointment a : appointments) {
-            if (a.getStatus() == AppointmentStatus.ASSIGNED || 
-                a.getStatus() == AppointmentStatus.COMPLETED ||
-                a.getStatus() == AppointmentStatus.PAID) {
-                totalAssigned++;
-            }
-            if (a.getStatus() == AppointmentStatus.COMPLETED || a.getStatus() == AppointmentStatus.PAID) {
-                totalCompleted++;
-            }
-        }
-        
-        int completionRate = totalAssigned > 0 ? (totalCompleted * 100 / totalAssigned) : 0;
-        completionRateLabel.setText(completionRate + "%");
-        
-        int onTimeRate = completionRate;
-        onTimeRateLabel.setText(onTimeRate + "%");
+
+        return ratingCount > 0 ? (double) totalRating / ratingCount : 0.0;
     }
     
-    private void updateScheduleTable(List<Appointment> todayAppointments) {
-        tableModel.setRowCount(0);
-        
-        if (todayAppointments.isEmpty()) {
-            CardLayout cl = (CardLayout) scheduleContentPanel.getLayout();
-            cl.show(scheduleContentPanel, "EMPTY");
-        } else {
-            CardLayout cl = (CardLayout) scheduleContentPanel.getLayout();
-            cl.show(scheduleContentPanel, "TABLE");
-            
-            todayAppointments.sort((a, b) -> {
-                int dateCompare = b.getDate().compareTo(a.getDate());
-                if (dateCompare != 0) return dateCompare;
+    private void updatePriorityTable(List<Appointment> appointments) {
+        priorityTableModel.setRowCount(0);
 
-                return b.getStartTime().compareTo(a.getStartTime());
+        List<Appointment> priorityJobs = new ArrayList<>();
+        for (Appointment appointment : appointments) {
+            if (appointment.getStatus() == AppointmentStatus.ASSIGNED
+                    || appointment.getStatus() == AppointmentStatus.PENDING) {
+                priorityJobs.add(appointment);
+            }
+        }
+
+        sortNewestFirst(priorityJobs);
+
+        int limit = Math.min(priorityJobs.size(), 6);
+        for (int i = 0; i < limit; i++) {
+            Appointment appointment = priorityJobs.get(i);
+            priorityTableModel.addRow(new Object[]{
+                    appointment.getId(),
+                    appointment.getDate() + " " + appointment.getStartTime(),
+                    resolveUserName(appointment.getCustomerId()),
+                    appointment.getServiceType(),
+                    getDisplayStatus(appointment)
             });
-            
-            for (Appointment a : todayAppointments) {
-                User customer = userDAO.findById(a.getCustomerId());
-                String customerName = customer != null ? customer.getFullName() : "Unknown";
-                
-                Object[] row = {
-                	    a.getId(),
-                	    a.getDate() + " " + a.getStartTime(),
-                	    customerName,
-                	    a.getServiceType().toString(),
-                	    a.getStatus().toString(),
-                	    "VIEW"
-                	};
-                
-                tableModel.addRow(row);
-            }
+        }
+
+        if (priorityJobs.isEmpty()) {
+            priorityTableModel.addRow(new Object[]{"-", "-", "No active jobs", "-", "-"});
         }
     }
-    
-    private void showAppointmentDetails(Appointment a) {
-        if (a == null) return;
 
-        User customer = userDAO.findById(a.getCustomerId());
-        String customerName = customer != null ? customer.getFullName() : "Unknown";
+    private void updateRecentActivityTable(List<Appointment> appointments) {
+        activityTableModel.setRowCount(0);
+        List<Appointment> recent = new ArrayList<>(appointments);
+        sortNewestFirst(recent);
 
-        List<Comment> allComments = commentDAO.readAll();
-        StringBuilder customerComments = new StringBuilder();
+        int limit = Math.min(recent.size(), 8);
+        for (int i = 0; i < limit; i++) {
+            Appointment appointment = recent.get(i);
+            double amount = getPaymentAmount(appointment);
+            activityTableModel.addRow(new Object[]{
+                    appointment.getId(),
+                    appointment.getDate(),
+                    resolveUserName(appointment.getCustomerId()),
+                    appointment.getServiceType(),
+                    getDisplayStatus(appointment),
+                    amount > 0 ? String.format("RM %.2f", amount) : "-"
+            });
+        }
 
-        for (Comment c : allComments) {
-            if (a.getId().equals(c.getAppointmentId())) {
-                if (c.getCounterStaffId() == null) {
-                    customerComments.append("Comment: ")
-                                    .append(c.getContent())
-                                    .append("\n");
+        if (recent.isEmpty()) {
+            activityTableModel.addRow(new Object[]{"-", "-", "No appointment history", "-", "-", "-"});
+        }
+    }
+
+    private void updateNotifications(List<Appointment> appointments) {
+        notificationsListPanel.removeAll();
+        List<String[]> notifications = buildNotifications(appointments);
+
+        if (notifications.isEmpty()) {
+            notificationsListPanel.add(createNotificationItem(
+                    "All caught up",
+                    "No urgent appointment updates or customer rating alerts.",
+                    GREEN
+            ));
+        } else {
+            for (String[] item : notifications) {
+                notificationsListPanel.add(createNotificationItem(item[0], item[1], resolveNotificationColor(item[2])));
+                // Add separator between notifications except last one
+                if (notifications.indexOf(item) < notifications.size() - 1) {
+                    JSeparator separator = new JSeparator();
+                    separator.setForeground(new Color(230, 230, 230));
+                    separator.setMaximumSize(new Dimension(Integer.MAX_VALUE, 1));
+                    notificationsListPanel.add(separator);
                 }
             }
         }
 
-        if (customerComments.length() == 0) {
-            customerComments.append("No comments.");
-        }
+        notificationsListPanel.revalidate();
+        notificationsListPanel.repaint();
+    }
 
+    private List<String[]> buildNotifications(List<Appointment> appointments) {
+        List<String[]> items = new ArrayList<>();
+        List<Feedback> notes = techNoteDAO.readAll();
+        Set<String> processedAppointments = new HashSet<>(); // Track processed appointments
+        Set<String> processedComments = new HashSet<>(); // Track processed comment notifications
 
-        // ===== FEEDBACK (from feedback.txt) =====
-        List<Feedback> allFeedbacks = feedbackDAO.readAll();
-        StringBuilder customerFeedbacks = new StringBuilder();
+        for (Appointment appointment : appointments) {
+            if (processedAppointments.contains(appointment.getId())) {
+                continue; // Skip already processed appointments
+            }
+            
+            if (appointment.getStatus() == AppointmentStatus.ASSIGNED && !isPaid(appointment.getId())) {
+                items.add(new String[]{
+                        "Assigned job waiting",
+                        appointment.getId() + " is assigned for " + appointment.getDate() + " at " + appointment.getStartTime() + ".",
+                        "BLUE"
+                });
+                processedAppointments.add(appointment.getId());
+            }
 
-        for (Feedback f : allFeedbacks) {
-            if (a.getId().equals(f.getAppointmentId())) {
-                customerFeedbacks.append("Rating: ")
-                                 .append(f.getRating())
-                                 .append("/5\n");
-                customerFeedbacks.append("Feedback: ")
-                                 .append(f.getContent())
-                                 .append("\n");
+            if (appointment.getStatus() == AppointmentStatus.PENDING && !isPaid(appointment.getId())) {
+                items.add(new String[]{
+                        "Pending job",
+                        appointment.getId() + " is still pending and may need follow-up.",
+                        "ORANGE"
+                });
+                processedAppointments.add(appointment.getId());
+            }
+
+            if ((appointment.getStatus() == AppointmentStatus.ASSIGNED
+                    || appointment.getStatus() == AppointmentStatus.COMPLETED)
+                    && !hasTechnicianNote(notes, appointment.getId()) && !isPaid(appointment.getId())) {
+                items.add(new String[]{
+                        "No service note",
+                        appointment.getId() + " has no technician feedback or service note yet.",
+                        "ORANGE"
+                });
+                processedAppointments.add(appointment.getId());
             }
         }
 
-        if (customerFeedbacks.length() == 0) {
-            customerFeedbacks.append("No feedback.");
-        }
-        
-        // Technician Notes
-        List<TechNote> allNotes = techNoteDAO.readAll();
-        StringBuilder techNotes = new StringBuilder();
-        for (TechNote n : allNotes) {
-            if (a.getId().equals(n.getAppointmentId()) &&
-                currentTechnician.getId().equals(n.getTechnicianId())) {
-                techNotes.append(n.getContent()).append("\n");
+        // Process comments for this technician only, avoid duplicates
+        for (Comment comment : commentDAO.readAll()) {
+            // Only show comments for this specific technician
+            if (currentTechnician.getId().equals(comment.getTechnicianId())) {
+                String commentKey = comment.getAppointmentId() + "_" + comment.getRating();
+                
+                // Skip if already processed
+                if (processedComments.contains(commentKey)) {
+                    continue;
+                }
+                
+                if (comment.getRating() <= 2) {
+                    items.add(new String[]{
+                            "Low customer rating",
+                            "Appointment " + comment.getAppointmentId() + " received " + comment.getRating() + "/5. Review the comment.",
+                            "RED"
+                    });
+                    processedComments.add(commentKey);
+                } else if (comment.getRating() >= 4) {
+                    items.add(new String[]{
+                            "Positive feedback",
+                            "Appointment " + comment.getAppointmentId() + " received " + comment.getRating() + "/5 from a customer.",
+                            "GREEN"
+                    });
+                    processedComments.add(commentKey);
+                }
             }
         }
-        if (techNotes.length() == 0) techNotes.append("No technician notes yet.");
 
-        JTextPane textPane = new JTextPane();
-        textPane.setEditable(false);
-        textPane.setContentType("text/html");
-
-        textPane.setText(
-            "<html>" +
-            "=======================================<br>" +
-            "<b>APPOINTMENT DETAILS</b><br>" +
-            "=======================================<br><br>" +
-
-            "ID: " + a.getId() + "<br>" +
-            "Date: " + a.getDate() + "<br>" +
-            "Time: " + a.getStartTime() + "<br>" +
-            "Service: " + a.getServiceType() + "<br>" +
-            "Duration: " + a.getDuration() + " hour(s)<br>" +
-            "Status: " + a.getStatus() + "<br>" +
-            "Amount: RM " + String.format("%.2f", a.getAmount()) + "<br>" +
-            "Customer: " + customerName + "<br><br>" +
-
-            "---------------------------------------<br>" +
-            "<b>CUSTOMER COMMENTS:</b><br>" +
-            customerComments.toString().replace("\n","<br>") + "<br><br>" +
-
-            "---------------------------------------<br>" +
-            "<b>CUSTOMER FEEDBACK:</b><br>" +
-            customerFeedbacks.toString().replace("\n","<br>") + "<br><br>" +
-
-            "---------------------------------------<br>" +
-            "<b>TECHNICIAN NOTES:</b><br>" +
-            techNotes.toString().replace("\n","<br>") +
-
-            "</html>"
-        );
-
-        JScrollPane scrollPane = new JScrollPane(textPane);
-        scrollPane.setPreferredSize(new Dimension(550, 500));
-
-        JOptionPane.showMessageDialog(this, scrollPane,
-                "Appointment Details", JOptionPane.INFORMATION_MESSAGE);
+        return limitNotifications(items, 8);
     }
-
     
-    private boolean isWithin24Hours(String dateStr, String timeStr) {
-        try {
-            java.time.LocalDateTime appointmentTime =
-                    java.time.LocalDateTime.parse(dateStr + "T" + timeStr);
-
-            java.time.LocalDateTime now = java.time.LocalDateTime.now();
-
-            return !appointmentTime.isBefore(now.minusHours(24))
-                    && !appointmentTime.isAfter(now);
-
-        } catch (Exception e) {
-            return false;
+    private List<String[]> limitNotifications(List<String[]> items, int limit) {
+        List<String[]> limited = new ArrayList<>();
+        int count = Math.min(items.size(), limit);
+        for (int i = 0; i < count; i++) {
+            limited.add(items.get(i));
         }
+        return limited;
     }
-    
+
+    private JPanel createNotificationItem(String title, String detail, Color accentColor) {
+        JPanel item = new JPanel(new BorderLayout(10, 0));
+        item.setBackground(Color.WHITE);
+        item.setBorder(BorderFactory.createEmptyBorder(8, 12, 8, 12));
+        item.setMaximumSize(new Dimension(Integer.MAX_VALUE, 60));
+
+        JPanel dot = new JPanel();
+        dot.setBackground(accentColor);
+        dot.setPreferredSize(new Dimension(4, 0));
+        item.add(dot, BorderLayout.WEST);
+
+        JPanel text = new JPanel();
+        text.setLayout(new BoxLayout(text, BoxLayout.Y_AXIS));
+        text.setBackground(Color.WHITE);
+
+        JLabel titleLabel = new JLabel(title);
+        titleLabel.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        titleLabel.setForeground(new Color(31, 41, 55));
+        titleLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        JLabel detailLabel = new JLabel("<html>" + detail + "</html>");
+        detailLabel.setFont(new Font("Segoe UI", Font.PLAIN, 11));
+        detailLabel.setForeground(TEXT_MUTED);
+        detailLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        text.add(titleLabel);
+        text.add(Box.createVerticalStrut(2));
+        text.add(detailLabel);
+        item.add(text, BorderLayout.CENTER);
+
+        return item;
+    }
+
+    private boolean hasTechnicianNote(List<Feedback> notes, String appointmentId) {
+        for (Feedback note : notes) {
+            if (appointmentId.equals(note.getAppointmentId())
+                    && currentTechnician.getId().equals(note.getTechnicianId())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private Color resolveNotificationColor(String type) {
+        if ("GREEN".equals(type)) return GREEN;
+        if ("RED".equals(type)) return new Color(220, 38, 38);
+        if ("BLUE".equals(type)) return BLUE;
+        return ORANGE;
+    }
+
+    private void sortNewestFirst(List<Appointment> appointments) {
+        appointments.sort((a, b) -> {
+            String aDate = a.getDate() == null ? "" : a.getDate();
+            String bDate = b.getDate() == null ? "" : b.getDate();
+            int dateCompare = bDate.compareTo(aDate);
+            if (dateCompare != 0) {
+                return dateCompare;
+            }
+
+            String aTime = a.getStartTime() == null ? "" : a.getStartTime();
+            String bTime = b.getStartTime() == null ? "" : b.getStartTime();
+            return bTime.compareTo(aTime);
+        });
+    }
+
+    private String resolveUserName(String userId) {
+        if (userId == null || userId.trim().isEmpty()) {
+            return "-";
+        }
+        User user = userDAO.findById(userId);
+        return user != null ? user.getFullName() : userId;
+    }
+
     @Override
     protected void addEventHandlers() {
+    }
+    
+    private class TableCellRenderer extends DefaultTableCellRenderer {
+        @Override
+        public Component getTableCellRendererComponent(JTable table, Object value,
+                boolean isSelected, boolean hasFocus, int row, int column) {
+            Component c = super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
+            
+            JLabel label = (JLabel) c;
+            label.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+            label.setBorder(BorderFactory.createCompoundBorder(
+                    BorderFactory.createMatteBorder(0, 0, 1, 0, ROW_SEPARATOR),
+                    BorderFactory.createEmptyBorder(12, 18, 12, 10)
+            ));
+            
+            if (!isSelected) {
+                label.setBackground(Color.WHITE);
+                label.setForeground(new Color(31, 41, 55));
+            } else {
+                label.setBackground(TABLE_SELECTION);
+                label.setForeground(new Color(31, 41, 55));
+            }
+            
+            return label;
+        }
+    }
+
+    private class StatusRenderer extends DefaultTableCellRenderer {
+        @Override
+        public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected,
+                                                       boolean hasFocus, int row, int column) {
+            JLabel label = (JLabel) super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
+            label.setHorizontalAlignment(SwingConstants.LEFT);
+            label.setFont(new Font("Segoe UI", Font.BOLD, 12));
+
+            if (!isSelected) {
+                label.setBackground(Color.WHITE);
+                String status = value == null ? "" : value.toString();
+
+                if ("COMPLETED".equals(status)) {
+                    label.setForeground(GREEN);
+                } else if ("ASSIGNED".equals(status)) {
+                    label.setForeground(BLUE);
+                } else if ("PENDING".equals(status)) {
+                    label.setForeground(ORANGE);
+                } else {
+                    label.setForeground(Color.BLACK);
+                }
+            }
+
+            return label;
+        }
     }
 }

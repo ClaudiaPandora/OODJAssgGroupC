@@ -8,14 +8,10 @@ import ui.auth.LoginFrame;
 import ui.common.BaseFrame;
 import ui.common.HeaderPanel;
 import ui.common.NavigationPanel;
-import ui.customer.CustomerFeedbackPanel;
-import ui.customer.CustomerHistoryPanel;
-import ui.manager.FeedbackPanel;
-import ui.manager.PriceSettingsPanel;
-import ui.manager.ReportsPanel;
-import ui.manager.StaffManagementPanel;
-import ui.technician.MyJobsPanel;
-import ui.technician.TechnicianOverviewPanel;
+import ui.counter.*;
+import ui.customer.*;
+import ui.manager.*;
+import ui.technician.*;
 
 import javax.swing.*;
 import java.awt.*;
@@ -118,21 +114,26 @@ public class DashboardFrame extends BaseFrame {
         ProfilePanel profilePanel = new ProfilePanel(currentUser);
         contentPanel.add(profilePanel, "PROFILE");
 
-        if (currentUser.getRole() == UserRole.TECHNICIAN) {
-            contentPanel.add(new TechnicianOverviewPanel(currentUser), "OVERVIEW");
-            contentPanel.add(new MyJobsPanel(currentUser), "JOBS");
-        } else if (currentUser.getRole() == UserRole.MANAGER) {
-            contentPanel.add(new OverviewPanel(currentUser), "OVERVIEW");
+        if (currentUser.getRole() == UserRole.MANAGER) {
+            contentPanel.add(new ManagerOverview(currentUser), "OVERVIEW");
             contentPanel.add(new StaffManagementPanel(), "STAFF");
-            contentPanel.add(new PriceSettingsPanel(), "PRICES");
+            PriceSettingsPanel pricePanel = new PriceSettingsPanel();
+            pricePanel.setCurrentUser(currentUser);
+            contentPanel.add(pricePanel, "PRICES");
             contentPanel.add(new FeedbackPanel(), "FEEDBACKS");
             contentPanel.add(new ReportsPanel(), "REPORTS");
+        } else if (currentUser.getRole() == UserRole.COUNTER_STAFF) {
+            contentPanel.add(new CounterOverview(currentUser), "OVERVIEW");
+            contentPanel.add(new CustomerManagementPanel(), "CUSTOMERS");
+            contentPanel.add(new AppointmentPanel(currentUser), "APPOINTMENTS");
+            contentPanel.add(new PaymentPanel(), "PAYMENTS");
+        } else if (currentUser.getRole() == UserRole.TECHNICIAN) {
+            contentPanel.add(new TechnicianOverviewPanel(currentUser), "OVERVIEW");
+            contentPanel.add(new MyJobsPanel(currentUser), "JOBS");
         } else if (currentUser.getRole() == UserRole.CUSTOMER) {
             contentPanel.add(new CustomerOverviewPanel(currentUser), "OVERVIEW");
             contentPanel.add(new CustomerHistoryPanel(currentUser), "HISTORY");
             contentPanel.add(new CustomerFeedbackPanel(currentUser), "MY_FEEDBACK");
-        } else {
-            contentPanel.add(new OverviewPanel(currentUser), "OVERVIEW");
         }
 
         cardLayout.show(contentPanel, "OVERVIEW");
