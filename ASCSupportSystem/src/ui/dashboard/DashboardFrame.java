@@ -134,6 +134,7 @@ public class DashboardFrame extends BaseFrame {
             contentPanel.add(new CustomerOverviewPanel(currentUser), "OVERVIEW");
             contentPanel.add(new CustomerHistoryPanel(currentUser), "HISTORY");
             contentPanel.add(new CustomerFeedbackPanel(currentUser), "MY_FEEDBACK");
+            contentPanel.add(new CustomerCommentHistoryPanel(currentUser), "MY_COMMENT_HISTORY");
         }
 
         cardLayout.show(contentPanel, "OVERVIEW");

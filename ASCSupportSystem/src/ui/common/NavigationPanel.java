@@ -32,7 +32,6 @@ public class NavigationPanel extends JPanel {
     private void initializeComponents(User user) {
         add(Box.createVerticalStrut(20));
         
-        // Main Menu Section
         add(createSectionLabel("MAIN MENU"));
         
         add(createNavButton("Overview", "OVERVIEW"));
@@ -51,17 +50,16 @@ public class NavigationPanel extends JPanel {
         } else if (user.getRole() == UserRole.CUSTOMER) {
             add(createNavButton("Service History", "HISTORY"));
             add(createNavButton("My Feedback", "MY_FEEDBACK"));
+            add(createNavButton("My Comment History", "MY_COMMENT_HISTORY"));
         }
         
         add(Box.createVerticalStrut(30));
         
-        // Account Section
         add(createSectionLabel("ACCOUNT"));
         add(createNavButton("Profile", "PROFILE"));
         
         add(Box.createVerticalGlue());
         
-        // Logout button at bottom
         add(Box.createVerticalStrut(10));
         add(createLogoutButton());
         add(Box.createVerticalStrut(20));
@@ -93,7 +91,6 @@ public class NavigationPanel extends JPanel {
         button.setMaximumSize(new Dimension(Integer.MAX_VALUE, 45));
         button.setAlignmentX(Component.LEFT_ALIGNMENT);
         
-        // Only change when clicked
         button.addActionListener(e -> {
             setActiveButton(panelName);
             cardLayout.show(contentPanel, panelName);
@@ -109,12 +106,10 @@ public class NavigationPanel extends JPanel {
         button.setBorder(BorderFactory.createEmptyBorder(12, 25, 12, 25));
         button.setFocusPainted(false);
 
-        // ===== UI FIXES =====
         button.setBackground(PANEL_BG);
         button.setForeground(new Color(180, 0, 0));
         button.setOpaque(true);
         button.setContentAreaFilled(true);
-        // =====================
 
         button.setCursor(new Cursor(Cursor.HAND_CURSOR));
         button.setMaximumSize(new Dimension(Integer.MAX_VALUE, 45));
@@ -127,27 +122,25 @@ public class NavigationPanel extends JPanel {
     
     public void setActiveButton(String panelName) {
         if (activeButton != null) {
-        	activeButton.setBackground(PANEL_BG);
-        	activeButton.setForeground(new Color(50, 50, 50));
-        	activeButton.setOpaque(true);
-        	activeButton.setContentAreaFilled(true);
-        	activeButton.setBorderPainted(false);
-        	activeButton.repaint();        }
+                activeButton.setBackground(PANEL_BG);
+                activeButton.setForeground(new Color(50, 50, 50));
+                activeButton.setOpaque(true);
+                activeButton.setContentAreaFilled(true);
+                activeButton.setBorderPainted(false);
+                activeButton.repaint();        }
         
         for (Component c : getComponents()) {
             if (c instanceof JButton) {
                 JButton btn = (JButton) c;
                 if (btn.getText().equals(getButtonTextForPanel(panelName))) {
 
-                    // ===== ACTIVE STATE UI =====
-                	btn.setBackground(NAVY_BLUE);
-                	btn.setForeground(Color.WHITE);
+                        btn.setBackground(NAVY_BLUE);
+                        btn.setForeground(Color.WHITE);
 
-                	btn.setOpaque(true);
-                	btn.setContentAreaFilled(true);
-                	btn.setBorderPainted(false);   
-                	btn.repaint();       
-                    // ============================
+                        btn.setOpaque(true);
+                        btn.setContentAreaFilled(true);
+                        btn.setBorderPainted(false);   
+                        btn.repaint();       
 
                     activeButton = btn;
                     break;
@@ -169,6 +162,7 @@ public class NavigationPanel extends JPanel {
             case "JOBS": return "My Jobs";
             case "HISTORY": return "Service History";
             case "MY_FEEDBACK": return "My Feedback";
+            case "MY_COMMENT_HISTORY": return "My Comment History";
             case "PROFILE": return "Profile";
             default: return "";
         }
