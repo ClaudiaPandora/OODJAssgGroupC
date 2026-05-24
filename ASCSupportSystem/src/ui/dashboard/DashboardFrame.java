@@ -128,9 +128,11 @@ public class DashboardFrame extends BaseFrame {
             contentPanel.add(new AppointmentPanel(currentUser), "APPOINTMENTS");
             contentPanel.add(new PaymentPanel(), "PAYMENTS");
             contentPanel.add(new TechnicianSchedulePanel(), "TECH_SCHEDULE");
+            contentPanel.add(new ui.counter.TechnicianSchedulePanel(), "TECH_SCHEDULE");
         } else if (currentUser.getRole() == UserRole.TECHNICIAN) {
             contentPanel.add(new TechnicianOverviewPanel(currentUser), "OVERVIEW");
             contentPanel.add(new MyJobsPanel(currentUser), "JOBS");
+            contentPanel.add(new MySchedulePanel(currentUser), "MY_SCHEDULE");
         } else if (currentUser.getRole() == UserRole.CUSTOMER) {
             contentPanel.add(new CustomerOverviewPanel(currentUser), "OVERVIEW");
             contentPanel.add(new CustomerHistoryPanel(currentUser), "HISTORY");

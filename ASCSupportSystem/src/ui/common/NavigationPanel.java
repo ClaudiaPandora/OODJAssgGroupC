@@ -48,6 +48,7 @@ public class NavigationPanel extends JPanel {
             add(createNavButton("Tech Schedule", "TECH_SCHEDULE"));
         } else if (user.getRole() == UserRole.TECHNICIAN) {
             add(createNavButton("My Jobs", "JOBS"));
+            add(createNavButton("My Schedule", "MY_SCHEDULE"));
         } else if (user.getRole() == UserRole.CUSTOMER) {
             add(createNavButton("Service History", "HISTORY"));
             add(createNavButton("My Feedback", "MY_FEEDBACK"));
@@ -160,6 +161,7 @@ public class NavigationPanel extends JPanel {
             case "PAYMENTS":            return "Payments";
             case "TECH_SCHEDULE":       return "Tech Schedule";
             case "JOBS":                return "My Jobs";
+            case "MY_SCHEDULE":         return "My Schedule";
             case "HISTORY":             return "Service History";
             case "MY_FEEDBACK":         return "My Feedback";
             case "MY_COMMENT_HISTORY":  return "My Comment History";
