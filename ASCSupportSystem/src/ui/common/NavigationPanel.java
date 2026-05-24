@@ -45,6 +45,7 @@ public class NavigationPanel extends JPanel {
             add(createNavButton("Manage Customers", "CUSTOMERS"));
             add(createNavButton("Appointments", "APPOINTMENTS"));
             add(createNavButton("Payments", "PAYMENTS"));
+            add(createNavButton("Tech Schedule", "TECH_SCHEDULE"));
         } else if (user.getRole() == UserRole.TECHNICIAN) {
             add(createNavButton("My Jobs", "JOBS"));
         } else if (user.getRole() == UserRole.CUSTOMER) {
@@ -85,7 +86,7 @@ public class NavigationPanel extends JPanel {
         button.setForeground(new Color(50, 50, 50));
         button.setOpaque(true);
         button.setContentAreaFilled(true);
-        button.setBorderPainted(false);   
+        button.setBorderPainted(false);
 
         button.setCursor(new Cursor(Cursor.HAND_CURSOR));
         button.setMaximumSize(new Dimension(Integer.MAX_VALUE, 45));
@@ -122,26 +123,24 @@ public class NavigationPanel extends JPanel {
     
     public void setActiveButton(String panelName) {
         if (activeButton != null) {
-                activeButton.setBackground(PANEL_BG);
-                activeButton.setForeground(new Color(50, 50, 50));
-                activeButton.setOpaque(true);
-                activeButton.setContentAreaFilled(true);
-                activeButton.setBorderPainted(false);
-                activeButton.repaint();        }
+            activeButton.setBackground(PANEL_BG);
+            activeButton.setForeground(new Color(50, 50, 50));
+            activeButton.setOpaque(true);
+            activeButton.setContentAreaFilled(true);
+            activeButton.setBorderPainted(false);
+            activeButton.repaint();
+        }
         
         for (Component c : getComponents()) {
             if (c instanceof JButton) {
                 JButton btn = (JButton) c;
                 if (btn.getText().equals(getButtonTextForPanel(panelName))) {
-
-                        btn.setBackground(NAVY_BLUE);
-                        btn.setForeground(Color.WHITE);
-
-                        btn.setOpaque(true);
-                        btn.setContentAreaFilled(true);
-                        btn.setBorderPainted(false);   
-                        btn.repaint();       
-
+                    btn.setBackground(NAVY_BLUE);
+                    btn.setForeground(Color.WHITE);
+                    btn.setOpaque(true);
+                    btn.setContentAreaFilled(true);
+                    btn.setBorderPainted(false);
+                    btn.repaint();
                     activeButton = btn;
                     break;
                 }
@@ -151,20 +150,21 @@ public class NavigationPanel extends JPanel {
     
     private String getButtonTextForPanel(String panelName) {
         switch (panelName) {
-            case "OVERVIEW": return "Overview";
-            case "STAFF": return "Manage Staff";
-            case "PRICES": return "Set Prices";
-            case "FEEDBACKS": return "Feedbacks & Comments";
-            case "REPORTS": return "Reports";
-            case "CUSTOMERS": return "Manage Customers";
-            case "APPOINTMENTS": return "Appointments";
-            case "PAYMENTS": return "Payments";
-            case "JOBS": return "My Jobs";
-            case "HISTORY": return "Service History";
-            case "MY_FEEDBACK": return "My Feedback";
-            case "MY_COMMENT_HISTORY": return "My Comment History";
-            case "PROFILE": return "Profile";
-            default: return "";
+            case "OVERVIEW":            return "Overview";
+            case "STAFF":               return "Manage Staff";
+            case "PRICES":              return "Set Prices";
+            case "FEEDBACKS":           return "Feedbacks & Comments";
+            case "REPORTS":             return "Reports";
+            case "CUSTOMERS":           return "Manage Customers";
+            case "APPOINTMENTS":        return "Appointments";
+            case "PAYMENTS":            return "Payments";
+            case "TECH_SCHEDULE":       return "Tech Schedule";
+            case "JOBS":                return "My Jobs";
+            case "HISTORY":             return "Service History";
+            case "MY_FEEDBACK":         return "My Feedback";
+            case "MY_COMMENT_HISTORY":  return "My Comment History";
+            case "PROFILE":             return "Profile";
+            default:                    return "";
         }
     }
 }

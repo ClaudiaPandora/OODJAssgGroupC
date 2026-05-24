@@ -28,6 +28,8 @@ import java.io.FileWriter;
 import java.io.PrintWriter;
 import java.text.SimpleDateFormat;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 
 public class PaymentPanel extends BasePanel {
@@ -40,6 +42,8 @@ public class PaymentPanel extends BasePanel {
     private JButton refreshButton;
     private JButton exportButton;
     private ServiceDAO serviceDAO; 
+    private JComboBox<String> paymentStatusFilter;
+    private JComboBox<String> paymentSortCombo;
     
     private final Color CARD_BORDER = new Color(226, 232, 240);
     private final Color TABLE_HEADER_BG = new Color(244, 246, 250);
@@ -92,6 +96,15 @@ public class PaymentPanel extends BasePanel {
         
         refreshButton = createStyledButton("Refresh", GREEN);
         exportButton = createStyledButton("Export to Excel", BLUE);
+        paymentStatusFilter = new JComboBox<>(new String[]{"All Payments", "Paid", "Unpaid"});
+        paymentStatusFilter.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        paymentStatusFilter.setBackground(Color.WHITE);
+        paymentStatusFilter.setPreferredSize(new Dimension(125, 34));
+
+        paymentSortCombo = new JComboBox<>(new String[]{"Recent Date", "Oldest Date"});
+        paymentSortCombo.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        paymentSortCombo.setBackground(Color.WHITE);
+        paymentSortCombo.setPreferredSize(new Dimension(125, 34));
     }
     
     private void setupTableStyle() {
@@ -181,6 +194,20 @@ public class PaymentPanel extends BasePanel {
         
         JPanel rightPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
         rightPanel.setBackground(PANEL_BG);
+
+        JLabel statusLabel = new JLabel("Filter:");
+        statusLabel.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        statusLabel.setForeground(new Color(31, 41, 55));
+        rightPanel.add(statusLabel);
+        paymentStatusFilter.addActionListener(e -> loadPaymentData());
+        rightPanel.add(paymentStatusFilter);
+
+        JLabel sortLabel = new JLabel("Sort:");
+        sortLabel.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        sortLabel.setForeground(new Color(31, 41, 55));
+        rightPanel.add(sortLabel);
+        paymentSortCombo.addActionListener(e -> loadPaymentData());
+        rightPanel.add(paymentSortCombo);
         
         exportButton.addActionListener(e -> exportToExcel());
         rightPanel.add(exportButton);
@@ -221,6 +248,8 @@ public class PaymentPanel extends BasePanel {
         List<Appointment> allAppointments = appointmentDAO.readAll();
         List<Payment> payments = paymentDAO.readAll();
         
+        List<PaymentRow> rows = new ArrayList<>();
+
         for (Appointment appt : allAppointments) {
             if (appt.getStatus() == AppointmentStatus.CANCELLED) {
                 continue;
@@ -243,6 +272,14 @@ public class PaymentPanel extends BasePanel {
             String paymentMethod = existingPayment != null ? existingPayment.getPaymentMethod().toString() : "-";
             String paymentDate = existingPayment != null ? existingPayment.getPaymentDate() : "-";
             String paymentStatus = isPaid ? "PAID" : "UNPAID";
+            String selectedStatus = paymentStatusFilter == null ? "All Payments" : (String) paymentStatusFilter.getSelectedItem();
+
+            if ("Paid".equals(selectedStatus) && !isPaid) {
+                continue;
+            }
+            if ("Unpaid".equals(selectedStatus) && isPaid) {
+                continue;
+            }
             
             // For paid appointments, show amount from payment record
             double displayAmount = isPaid && existingPayment != null ? existingPayment.getAmount() : appt.getAmount();
@@ -261,7 +298,18 @@ public class PaymentPanel extends BasePanel {
                 paymentStatus,
                 actionText
             };
-            tableModel.addRow(row);
+            String sortDate = isPaid && existingPayment != null ? existingPayment.getPaymentDate() : appt.getDate();
+            rows.add(new PaymentRow(row, sortDate));
+        }
+
+        String selectedSort = paymentSortCombo == null ? "Recent Date" : (String) paymentSortCombo.getSelectedItem();
+        rows.sort(Comparator.comparing(PaymentRow::getSortDate));
+        if ("Recent Date".equals(selectedSort)) {
+            java.util.Collections.reverse(rows);
+        }
+
+        for (PaymentRow row : rows) {
+            tableModel.addRow(row.getData());
         }
         
         if (tableModel.getRowCount() == 0) {
@@ -271,6 +319,24 @@ public class PaymentPanel extends BasePanel {
         // Force table refresh
         paymentTable.revalidate();
         paymentTable.repaint();
+    }
+
+    private static class PaymentRow {
+        private final Object[] data;
+        private final String sortDate;
+
+        PaymentRow(Object[] data, String sortDate) {
+            this.data = data;
+            this.sortDate = sortDate == null ? "" : sortDate;
+        }
+
+        Object[] getData() {
+            return data;
+        }
+
+        String getSortDate() {
+            return sortDate;
+        }
     }
     
     private boolean isAppointmentPaid(String appointmentId, List<Payment> payments) {
