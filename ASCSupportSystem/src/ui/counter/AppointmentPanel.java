@@ -225,10 +225,28 @@ public class AppointmentPanel extends BasePanel {
         actionPanel.setBackground(LIGHT_BG);
         actionPanel.setBorder(BorderFactory.createMatteBorder(1, 0, 0, 0, CARD_BORDER));
         
+        editButton = new JButton("Edit Appointment");
+        editButton.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        editButton.setBackground(new Color(59, 130, 246));
+        editButton.setForeground(Color.WHITE);
+        editButton.setFocusPainted(false);
+        editButton.setBorderPainted(false);
+        editButton.setOpaque(true);
+        editButton.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        editButton.setBorder(BorderFactory.createEmptyBorder(8, 16, 8, 16));
         editButton.addActionListener(e -> editSelectedAppointment());
-        cancelAppointmentButton.addActionListener(e -> cancelSelectedAppointment());
-        
         actionPanel.add(editButton);
+        
+        cancelAppointmentButton = new JButton("Cancel Appointment");
+        cancelAppointmentButton.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        cancelAppointmentButton.setBackground(new Color(220, 38, 38));
+        cancelAppointmentButton.setForeground(Color.WHITE);
+        cancelAppointmentButton.setFocusPainted(false);
+        cancelAppointmentButton.setBorderPainted(false);
+        cancelAppointmentButton.setOpaque(true);
+        cancelAppointmentButton.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        cancelAppointmentButton.setBorder(BorderFactory.createEmptyBorder(8, 16, 8, 16));
+        cancelAppointmentButton.addActionListener(e -> cancelSelectedAppointment());
         actionPanel.add(cancelAppointmentButton);
         
         panel.add(actionPanel, BorderLayout.SOUTH);
@@ -347,10 +365,11 @@ public class AppointmentPanel extends BasePanel {
                     return;
                 }
                 
-                if (isPaid(apptId)) {
-                    JOptionPane.showMessageDialog(this, "Cannot edit a paid appointment.");
-                    return;
-                }
+                // REMOVE THIS BLOCK - allow editing paid appointments
+                // if (isPaid(apptId)) {
+                //     JOptionPane.showMessageDialog(this, "Cannot edit a paid appointment.");
+                //     return;
+                // }
                 
                 showAppointmentDialog(appt);
             }
@@ -413,7 +432,9 @@ public class AppointmentPanel extends BasePanel {
         button.setOpaque(true);
         button.setCursor(new Cursor(Cursor.HAND_CURSOR));
         button.setBorder(BorderFactory.createEmptyBorder(8, 14, 8, 14));
-        button.setPreferredSize(new Dimension(110, 34));
+        // Remove the fixed width constraint or make it wider
+        button.setPreferredSize(null);  // Let it size naturally
+        button.setMinimumSize(new Dimension(140, 34));  // Minimum width to fit text
         
         button.addMouseListener(new MouseAdapter() {
             @Override
@@ -838,30 +859,30 @@ class AppointmentFormDialog extends JDialog {
  }
  
  private void populateFields() {
-     if (existingAppointment == null) return;
-     
-     for (int i = 0; i < customerCombo.getItemCount(); i++) {
-         String item = customerCombo.getItemAt(i);
-         if (item != null && item.startsWith(existingAppointment.getCustomerId())) {
-             customerCombo.setSelectedIndex(i);
-             break;
-         }
-     }
-     
-     serviceTypeCombo.setSelectedItem(existingAppointment.getServiceType().toString());
-     dateField.setText(existingAppointment.getDate());
-     timeField.setText(existingAppointment.getStartTime());
-     
-     if (existingAppointment.getTechnicianId() != null) {
-         for (int i = 0; i < technicianCombo.getItemCount(); i++) {
-             String item = technicianCombo.getItemAt(i);
-             if (item != null && item.startsWith(existingAppointment.getTechnicianId())) {
-                 technicianCombo.setSelectedIndex(i);
-                 break;
-             }
-         }
-     }
- }
+	    if (existingAppointment == null) return;
+	    	    
+	    for (int i = 0; i < customerCombo.getItemCount(); i++) {
+	        String item = customerCombo.getItemAt(i);
+	        if (item != null && item.startsWith(existingAppointment.getCustomerId())) {
+	            customerCombo.setSelectedIndex(i);
+	            break;
+	        }
+	    }
+	    
+	    serviceTypeCombo.setSelectedItem(existingAppointment.getServiceType().toString());
+	    dateField.setText(existingAppointment.getDate());
+	    timeField.setText(existingAppointment.getStartTime());
+	    
+	    if (existingAppointment.getTechnicianId() != null) {
+	        for (int i = 0; i < technicianCombo.getItemCount(); i++) {
+	            String item = technicianCombo.getItemAt(i);
+	            if (item != null && item.startsWith(existingAppointment.getTechnicianId())) {
+	                technicianCombo.setSelectedIndex(i);
+	                break;
+            }
+        }
+    }
+}
  
  private void handleSubmit() {
      String validationMsg = validateFields();
@@ -965,12 +986,6 @@ class AppointmentFormDialog extends JDialog {
 	    try {
 	        if (existingAppointment.getStatus() == AppointmentStatus.CANCELLED) {
 	            JOptionPane.showMessageDialog(this, "Cannot edit a cancelled appointment.");
-	            dispose();
-	            return;
-	        }
-	        
-	        if (isPaid(existingAppointment.getId())) {
-	            JOptionPane.showMessageDialog(this, "Cannot edit a paid appointment.");
 	            dispose();
 	            return;
 	        }

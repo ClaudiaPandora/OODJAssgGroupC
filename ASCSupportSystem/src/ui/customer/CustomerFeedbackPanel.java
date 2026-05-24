@@ -797,7 +797,7 @@ public class CustomerFeedbackPanel extends BasePanel {
         commentFilterCombo.addActionListener(e -> refreshCommentsTable());
         refreshButton.addActionListener(e -> {
             refreshAll();
-            JOptionPane.showMessageDialog(this, "Data has been refreshed from files.", 
+            JOptionPane.showMessageDialog(this, "Data has been refreshed", 
                 "Refresh Complete", JOptionPane.INFORMATION_MESSAGE);
         });
     }

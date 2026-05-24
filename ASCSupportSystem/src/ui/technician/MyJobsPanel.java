@@ -34,11 +34,11 @@ import java.util.Set;
 public class MyJobsPanel extends BasePanel {
 
     private final User currentTechnician;
-    private final AppointmentDAO appointmentDAO;
-    private final UserDAO userDAO;
-    private final CommentDAO commentDAO;
-    private final FeedbackDAO techNoteDAO;
-    private final PaymentDAO paymentDAO;
+    private AppointmentDAO appointmentDAO;
+    private UserDAO userDAO;
+    private CommentDAO commentDAO;
+    private FeedbackDAO techNoteDAO;
+    private PaymentDAO paymentDAO;
 
     private JTable jobsTable;
     private JobTableModel tableModel;
@@ -82,6 +82,16 @@ public class MyJobsPanel extends BasePanel {
         loadJobs();
     }
 
+    private void refreshData() {
+        this.appointmentDAO = new AppointmentDAO();
+        this.userDAO = new UserDAO();
+        this.commentDAO = new CommentDAO();
+        this.techNoteDAO = new FeedbackDAO();
+        this.paymentDAO = new PaymentDAO();
+        refreshPaidAppointmentIds();
+        loadJobs();
+    }
+
     @Override
     protected void initializeComponents() {
         String[] columns = {"ID", "Date", "Time", "Service", "Status", "Rating", "Feedback"};
@@ -99,8 +109,7 @@ public class MyJobsPanel extends BasePanel {
                 new EmptyBorder(9, 12, 9, 12)
         ));
 
-        statusFilter = new JComboBox<>(new String[]{"All Status", "ASSIGNED", "COMPLETED"});
-        statusFilter.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        statusFilter = new JComboBox<>(new String[]{"All Status", "ASSIGNED", "COMPLETED", "CANCELLED"});        statusFilter.setFont(new Font("Segoe UI", Font.PLAIN, 13));
         statusFilter.setFocusable(false);
 
         statsLabel = new JLabel();
@@ -115,7 +124,7 @@ public class MyJobsPanel extends BasePanel {
         viewButton = createActionButton("View Details", BLUE);
         updateButton = createActionButton("Update Job", GREEN);
         resetButton = createSecondaryButton("Reset");
-        refreshButton = createActionButton("Refresh", new Color(34, 197, 94));  // Add this line
+        refreshButton = createActionButton("Refresh", new Color(34, 197, 94));
         
         viewButton.setEnabled(false);
         updateButton.setEnabled(false);
@@ -369,7 +378,7 @@ public class MyJobsPanel extends BasePanel {
         });
         
         refreshButton.addActionListener(e -> {
-            loadJobs();
+            refreshData();
             JOptionPane.showMessageDialog(this, "Jobs have been refreshed.", 
                 "Refresh Complete", JOptionPane.INFORMATION_MESSAGE);
         });
@@ -384,7 +393,6 @@ public class MyJobsPanel extends BasePanel {
             }
         });
 
-        // Use mouse listener to catch clicks even when button is disabled
         viewButton.addMouseListener(new MouseAdapter() {
             @Override
             public void mouseClicked(MouseEvent e) {
@@ -423,6 +431,18 @@ public class MyJobsPanel extends BasePanel {
         }
         
         String status = getDisplayStatus(selected);
+        
+        // Check if appointment is CANCELLED
+        if ("CANCELLED".equals(status)) {
+            JOptionPane.showMessageDialog(this, 
+                "Cannot update a cancelled appointment.\n\n"
+                + "Appointment " + selected.getId() + " has been cancelled.\n"
+                + "You can only view the details.", 
+                "Cannot Update", 
+                JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+        
         boolean hasNote = hasTechNote(selected.getId());
         
         if ("COMPLETED".equals(status) && hasNote) {
@@ -447,7 +467,12 @@ public class MyJobsPanel extends BasePanel {
             String status = getDisplayStatus(selected);
             boolean hasNote = hasTechNote(selected.getId());
             
-            if ("COMPLETED".equals(status) && hasNote) {
+            // Check if appointment is CANCELLED
+            if ("CANCELLED".equals(status)) {
+                viewButton.setEnabled(true);
+                updateButton.setEnabled(false);
+                updateButton.setToolTipText("Cannot update cancelled appointments");
+            } else if ("COMPLETED".equals(status) && hasNote) {
                 viewButton.setEnabled(true);
                 updateButton.setEnabled(false);
                 updateButton.setToolTipText("Already completed with service notes");
@@ -462,7 +487,7 @@ public class MyJobsPanel extends BasePanel {
             viewButton.setToolTipText("Select a job to view");
             updateButton.setToolTipText("Select a job to update");
         }
-    }    
+    }
     
     private void refreshPaidAppointmentIds() {
         paidAppointmentIds.clear();
@@ -472,9 +497,6 @@ public class MyJobsPanel extends BasePanel {
     }
     
     private String getDisplayStatus(Appointment appointment) {
-        if (paidAppointmentIds.contains(appointment.getId())) {
-            return "COMPLETED";
-        }
         return appointment.getStatus().toString();
     }
     
@@ -484,7 +506,8 @@ public class MyJobsPanel extends BasePanel {
     
     private boolean hasTechNote(String appointmentId) {
         for (Feedback note : techNoteDAO.readAll()) {
-            if (note.getAppointmentId().equals(appointmentId)) {
+            if (note.getAppointmentId().equals(appointmentId) 
+                    && currentTechnician.getId().equals(note.getTechnicianId())) {
                 return true;
             }
         }
@@ -507,6 +530,7 @@ public class MyJobsPanel extends BasePanel {
 
     private void loadJobs() {
         refreshPaidAppointmentIds();
+        // Show ALL appointments assigned to this technician (ASSIGNED, COMPLETED, and CANCELLED)
         List<Appointment> allAppointments = appointmentDAO.findByTechnicianId(currentTechnician.getId());
         tableModel.setAppointments(allAppointments);
         applyFilters();
@@ -648,7 +672,6 @@ public class MyJobsPanel extends BasePanel {
         panel.setBackground(Color.WHITE);
         panel.setBorder(BorderFactory.createEmptyBorder(12, 12, 12, 12));
 
-        // Filter comments for this technician only
         List<Comment> technicianComments = new ArrayList<>();
         for (Comment c : comments) {
             if (currentTechnician.getId().equals(c.getTechnicianId())) {
@@ -834,91 +857,6 @@ public class MyJobsPanel extends BasePanel {
         return card;
     }
 
-    private JScrollPane createCommentsPanel(List<Comment> comments) {
-        JPanel panel = new JPanel();
-        panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
-        panel.setBackground(Color.WHITE);
-        panel.setBorder(BorderFactory.createEmptyBorder(12, 14, 12, 14));
-
-        if (comments.isEmpty()) {
-            JLabel emptyLabel = new JLabel("No customer comments yet.");
-            emptyLabel.setFont(new Font("Segoe UI", Font.ITALIC, 12));
-            emptyLabel.setForeground(new Color(156, 163, 175));
-            emptyLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
-            panel.add(emptyLabel);
-        } else {
-            for (Comment comment : comments) {
-                panel.add(createCommentBanner(comment));
-                panel.add(Box.createVerticalStrut(10));
-            }
-        }
-
-        JScrollPane scrollPane = new JScrollPane(panel);
-        scrollPane.setBorder(null);
-        scrollPane.getViewport().setBackground(Color.WHITE);
-        return scrollPane;
-    }
-
-    private JPanel createCommentBanner(Comment comment) {
-        JPanel card = new JPanel(new BorderLayout(14, 0));
-        card.setBackground(ratingBgColor(comment.getRating()));
-        card.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(ratingBorderColor(comment.getRating())),
-                BorderFactory.createEmptyBorder(12, 16, 12, 16)
-        ));
-        card.setMaximumSize(new Dimension(Integer.MAX_VALUE, 100));
-
-        JPanel scorePanel = new JPanel();
-        scorePanel.setLayout(new BoxLayout(scorePanel, BoxLayout.Y_AXIS));
-        scorePanel.setOpaque(false);
-        scorePanel.setPreferredSize(new Dimension(80, 0));
-
-        JLabel score = new JLabel(comment.getRating() + "/5");
-        score.setFont(new Font("Segoe UI", Font.BOLD, 26));
-        score.setForeground(ratingTextColor(comment.getRating()));
-        score.setAlignmentX(Component.LEFT_ALIGNMENT);
-
-        JLabel label = new JLabel(ratingLabel(comment.getRating()));
-        label.setFont(new Font("Segoe UI", Font.BOLD, 10));
-        label.setForeground(ratingTextColor(comment.getRating()));
-        label.setAlignmentX(Component.LEFT_ALIGNMENT);
-
-        scorePanel.add(score);
-        scorePanel.add(Box.createVerticalStrut(2));
-        scorePanel.add(label);
-
-        JTextArea content = new JTextArea(comment.getContent());
-        content.setEditable(false);
-        content.setLineWrap(true);
-        content.setWrapStyleWord(true);
-        content.setFont(new Font("Segoe UI", Font.PLAIN, 12));
-        content.setForeground(new Color(71, 85, 105));
-        content.setBackground(ratingBgColor(comment.getRating()));
-        content.setBorder(null);
-        
-        card.add(scorePanel, BorderLayout.WEST);
-        card.add(content, BorderLayout.CENTER);
-        return card;
-    }
-
-    private JScrollPane createTechNotesPanel(String notes) {
-        JPanel panel = new JPanel(new BorderLayout());
-        panel.setBackground(Color.WHITE);
-        panel.setBorder(BorderFactory.createEmptyBorder(12, 14, 12, 14));
-        
-        JTextArea notesArea = new JTextArea(notes);
-        notesArea.setEditable(false);
-        notesArea.setLineWrap(true);
-        notesArea.setWrapStyleWord(true);
-        notesArea.setFont(new Font("Segoe UI", Font.PLAIN, 13));
-        notesArea.setBackground(Color.WHITE);
-        notesArea.setBorder(BorderFactory.createLineBorder(new Color(200, 200, 200)));
-        notesArea.setMargin(new Insets(10, 12, 10, 12));
-        
-        panel.add(new JScrollPane(notesArea), BorderLayout.CENTER);
-        return new JScrollPane(panel);
-    }
-
     private JLabel createStatusBadge(String status) {
         JLabel label = new JLabel(status);
         label.setOpaque(true);
@@ -928,8 +866,14 @@ public class MyJobsPanel extends BasePanel {
         if ("COMPLETED".equals(status)) {
             label.setBackground(new Color(34, 197, 94));
             label.setForeground(Color.WHITE);
-        } else {
+        } else if ("ASSIGNED".equals(status)) {
             label.setBackground(new Color(59, 130, 246));
+            label.setForeground(Color.WHITE);
+        } else if ("CANCELLED".equals(status)) {
+            label.setBackground(new Color(220, 38, 38)); // Red color for cancelled
+            label.setForeground(Color.WHITE);
+        } else {
+            label.setBackground(new Color(234, 179, 8));
             label.setForeground(Color.WHITE);
         }
         
@@ -995,7 +939,6 @@ public class MyJobsPanel extends BasePanel {
         String status = getDisplayStatus(a);
         boolean hasNote = hasTechNote(a.getId());
         
-        // Check if job is already completed with tech note
         if ("COMPLETED".equals(status) && hasNote) {
             JOptionPane.showMessageDialog(this, 
                 "This job has already been completed with service notes.\n\n"
@@ -1007,7 +950,6 @@ public class MyJobsPanel extends BasePanel {
             return;
         }
         
-        // Check if completed but no tech note yet - allow update
         if ("COMPLETED".equals(status) && !hasNote) {
             int confirm = JOptionPane.showConfirmDialog(this,
                 "This appointment is marked as COMPLETED but has no service notes yet.\n\n"
@@ -1032,7 +974,6 @@ public class MyJobsPanel extends BasePanel {
         panel.add(createUpdateSummary(a));
         panel.add(Box.createVerticalStrut(15));
 
-        // Status section
         JPanel statusPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 0));
         statusPanel.setBackground(Color.WHITE);
         statusPanel.setBorder(BorderFactory.createCompoundBorder(
@@ -1050,7 +991,6 @@ public class MyJobsPanel extends BasePanel {
         statusDropdown.setFont(new Font("Segoe UI", Font.PLAIN, 13));
         statusDropdown.setPreferredSize(new Dimension(150, 32));
         
-        // If status is already COMPLETED, disable the dropdown
         if ("COMPLETED".equals(status)) {
             statusDropdown.setSelectedItem("COMPLETED");
             statusDropdown.setEnabled(false);
@@ -1064,7 +1004,6 @@ public class MyJobsPanel extends BasePanel {
         panel.add(statusPanel);
         panel.add(Box.createVerticalStrut(15));
 
-        // Notes section
         JPanel notesContainer = new JPanel(new BorderLayout(0, 10));
         notesContainer.setBackground(Color.WHITE);
         notesContainer.setBorder(BorderFactory.createCompoundBorder(
@@ -1072,7 +1011,7 @@ public class MyJobsPanel extends BasePanel {
                 BorderFactory.createEmptyBorder(15, 15, 15, 15)
         ));
 
-        JLabel notesTitle = new JLabel("Service Notes");
+        JLabel notesTitle = new JLabel("Service Notes (Optional)");
         notesTitle.setFont(new Font("Segoe UI", Font.BOLD, 13));
         notesTitle.setForeground(NAVY_BLUE);
         notesContainer.add(notesTitle, BorderLayout.NORTH);
@@ -1087,27 +1026,10 @@ public class MyJobsPanel extends BasePanel {
         ));
         if (existingNote != null && existingNote.getContent() != null) {
             notesArea.setText(existingNote.getContent());
+            notesArea.setForeground(Color.BLACK);
         } else {
-            notesArea.setText("Enter service notes here...");
-            notesArea.setForeground(Color.GRAY);
+            notesArea.setText("");
         }
-        
-        notesArea.addFocusListener(new java.awt.event.FocusAdapter() {
-            @Override
-            public void focusGained(java.awt.event.FocusEvent e) {
-                if (notesArea.getText().equals("Enter service notes here...")) {
-                    notesArea.setText("");
-                    notesArea.setForeground(Color.BLACK);
-                }
-            }
-            @Override
-            public void focusLost(java.awt.event.FocusEvent e) {
-                if (notesArea.getText().trim().isEmpty()) {
-                    notesArea.setText("Enter service notes here...");
-                    notesArea.setForeground(Color.GRAY);
-                }
-            }
-        });
 
         JPanel templatePanel = createTemplatePanel(notesArea);
         templatePanel.setPreferredSize(new Dimension(0, 70)); 
@@ -1161,10 +1083,7 @@ public class MyJobsPanel extends BasePanel {
         
         saveBtn.addActionListener(e -> {
             String notes = notesArea.getText().trim();
-            if (notes.equals("Enter service notes here...") || notes.isEmpty()) {
-                JOptionPane.showMessageDialog(dialog, "Please enter service notes.", "Validation Error", JOptionPane.WARNING_MESSAGE);
-                return;
-            }
+            // Notes are now optional - no validation required
             saveJobUpdate(a, existingNote, notes, statusDropdown);
             dialog.dispose();
         });
@@ -1179,7 +1098,7 @@ public class MyJobsPanel extends BasePanel {
         panel.setBackground(new Color(248, 250, 252));
         panel.setBorder(BorderFactory.createTitledBorder(
                 BorderFactory.createLineBorder(new Color(200, 200, 200)),
-                "Quick Templates (Click to insert)",
+                "Quick Templates (Optional - Click to insert)",
                 TitledBorder.LEFT,
                 TitledBorder.TOP,
                 new Font("Segoe UI", Font.BOLD, 11)
@@ -1208,7 +1127,7 @@ public class MyJobsPanel extends BasePanel {
             
             btn.addActionListener(e -> {
                 String currentText = notesArea.getText();
-                if (currentText.equals("Enter service notes here...") || currentText.isEmpty()) {
+                if (currentText.isEmpty()) {
                     notesArea.setText(template);
                     notesArea.setForeground(Color.BLACK);
                 } else {
@@ -1242,26 +1161,25 @@ public class MyJobsPanel extends BasePanel {
     }
     
     private void saveJobUpdate(Appointment appointment, Feedback existingNote, String content, JComboBox<String> statusDropdown) {
-        if (content.isEmpty()) {
-            JOptionPane.showMessageDialog(this, "Service notes cannot be empty.", "Validation Error", JOptionPane.WARNING_MESSAGE);
-            return;
-        }
-
-        boolean noteSaved;
-        if (existingNote != null) {
-            existingNote.setContent(content);
-            noteSaved = techNoteDAO.update(existingNote);
-        } else {
-            Feedback note = new Feedback();
-            note.setAppointmentId(appointment.getId());
-            note.setTechnicianId(currentTechnician.getId());
-            note.setContent(content);
-            note.setDate(DateUtils.getCurrentDate());
-            noteSaved = techNoteDAO.save(note);
+        // Notes are optional - can be empty
+        boolean noteSaved = true;
+        
+        // Only save note if content is not empty
+        if (content != null && !content.isEmpty()) {
+            if (existingNote != null) {
+                existingNote.setContent(content);
+                noteSaved = techNoteDAO.update(existingNote);
+            } else {
+                Feedback note = new Feedback();
+                note.setAppointmentId(appointment.getId());
+                note.setTechnicianId(currentTechnician.getId());
+                note.setContent(content);
+                note.setDate(DateUtils.getCurrentDate());
+                noteSaved = techNoteDAO.save(note);
+            }
         }
 
         boolean appointmentSaved = true;
-        // Only update status if dropdown is enabled (not completed)
         if (statusDropdown.isEnabled()) {
             AppointmentStatus selectedStatus = AppointmentStatus.valueOf(statusDropdown.getSelectedItem().toString());
             appointment.setStatus(selectedStatus);
@@ -1289,7 +1207,6 @@ public class MyJobsPanel extends BasePanel {
     private List<Comment> getCustomerComments(Appointment appointment) {
         List<Comment> comments = new ArrayList<>();
         for (Comment c : commentDAO.readAll()) {
-            // Check if comment belongs to this appointment AND is for this technician
             if (appointment.getId().equals(c.getAppointmentId()) 
                     && currentTechnician.getId().equals(c.getTechnicianId())) {
                 comments.add(c);
@@ -1307,7 +1224,6 @@ public class MyJobsPanel extends BasePanel {
         int total = 0;
         int count = 0;
         for (Comment comment : commentDAO.readAll()) {
-            // Only count comments for this appointment AND this technician
             if (appointment.getId().equals(comment.getAppointmentId()) 
                     && currentTechnician.getId().equals(comment.getTechnicianId())) {
                 total += comment.getRating();
@@ -1392,8 +1308,12 @@ public class MyJobsPanel extends BasePanel {
             if (statusColumn && value instanceof String) {
                 if ("COMPLETED".equals(value)) {
                     label.setForeground(new Color(34, 197, 94));
-                } else {
+                } else if ("ASSIGNED".equals(value)) {
                     label.setForeground(new Color(59, 130, 246));
+                } else if ("CANCELLED".equals(value)) {
+                    label.setForeground(new Color(220, 38, 38)); // Red for cancelled
+                } else {
+                    label.setForeground(new Color(234, 179, 8));
                 }
             } else if (!statusColumn && !isSelected) {
                 label.setForeground(new Color(31, 41, 55));

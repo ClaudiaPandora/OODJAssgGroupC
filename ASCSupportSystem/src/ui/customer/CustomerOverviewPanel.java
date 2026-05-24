@@ -38,6 +38,7 @@ public class CustomerOverviewPanel extends BasePanel {
     private JPanel statsPanel;
 
     private JPanel highlightCardContainer;
+    private JScrollPane scrollPane;
     private CardLayout highlightCardLayout;
     private JLabel highlightCounterLabel;
     private Timer carouselTimer;
@@ -142,14 +143,22 @@ public class CustomerOverviewPanel extends BasePanel {
         highlightsPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
         content.add(highlightsPanel);
 
-        JScrollPane scrollPane = new JScrollPane(content);
+        scrollPane = new JScrollPane(content);
         scrollPane.setBorder(null);
         scrollPane.getViewport().setBackground(PANEL_BG);
         scrollPane.getVerticalScrollBar().setUnitIncrement(16);
         scrollPane.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
-
+        
         SwingUtilities.invokeLater(() -> {
-            scrollPane.getVerticalScrollBar().setValue(0);
+            if (scrollPane != null) {
+                scrollPane.getViewport().setViewPosition(new Point(0, 0));
+            }
+        });
+        
+        SwingUtilities.invokeLater(() -> {
+            if (scrollPane != null) {
+                scrollPane.getViewport().setViewPosition(new Point(0, 0));
+            }
         });
 
         pagePanel.add(scrollPane, BorderLayout.CENTER);
@@ -221,8 +230,8 @@ public class CustomerOverviewPanel extends BasePanel {
             }
         }
 
-        statsPanel.add(createStatCard("Upcoming Schedule", String.valueOf(upcomingCount), BLUE));
-        statsPanel.add(createStatCard("Completed Schedule", String.valueOf(completedCount), GREEN));
+        statsPanel.add(createStatCard("Active Appointment", String.valueOf(upcomingCount), BLUE));
+        statsPanel.add(createStatCard("Completed Appointment", String.valueOf(completedCount), GREEN));
         statsPanel.add(createStatCard("Waiting for Rating", String.valueOf(waitingRatingCount), ORANGE));
 
         statsPanel.revalidate();
@@ -266,13 +275,13 @@ public class CustomerOverviewPanel extends BasePanel {
     }
 
     private JPanel createUpcomingSchedulePanel() {
-        JPanel panel = createCardPanel("My Upcoming Schedule");
+        JPanel panel = createCardPanel("My Active Appointment");
         panel.add(createScrollableBulletList(buildUpcomingItems(), "No upcoming appointments found."), BorderLayout.CENTER);
         return panel;
     }
 
     private JPanel createCompletedSchedulePanel() {
-        JPanel panel = createCardPanel("Completed Schedule");
+        JPanel panel = createCardPanel("Completed Appointment");
         panel.add(createScrollableBulletList(buildCompletedItems(), "No completed appointments found."), BorderLayout.CENTER);
         return panel;
     }
@@ -781,18 +790,30 @@ public class CustomerOverviewPanel extends BasePanel {
 
     private void refreshDashboard() {
         refreshStats();
-        
+
         highlightCards = buildHighlightCards();
         highlightCardContainer.removeAll();
         for (int i = 0; i < highlightCards.size(); i++) {
             highlightCardContainer.add(highlightCards.get(i), "CARD_" + i);
         }
+
         highlightIndex = 0;
         highlightCardLayout.show(highlightCardContainer, "CARD_0");
         updateHighlightCounter();
-        
+
         revalidate();
         repaint();
+
+        // Scroll to top
+        if (scrollPane != null) {
+            SwingUtilities.invokeLater(() -> {
+                JScrollBar verticalBar = scrollPane.getVerticalScrollBar();
+                if (verticalBar != null) {
+                    verticalBar.setValue(0);
+                }
+                scrollPane.getViewport().setViewPosition(new Point(0, 0));
+            });
+        }
     }
 
     private void startCarousel() {

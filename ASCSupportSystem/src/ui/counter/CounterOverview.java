@@ -69,12 +69,18 @@ public class CounterOverview extends BasePanel {
     
     private void refreshPaidAppointmentIds() {
         paidAppointmentIds.clear();
-        for (Payment payment : paymentDAO.readAll()) {
+        List<Payment> payments = paymentDAO.readAll();
+        System.out.println("Refreshing paid IDs. Total payments: " + payments.size());
+        for (Payment payment : payments) {
             paidAppointmentIds.add(payment.getAppointmentId());
+            System.out.println("Added paid appointment: " + payment.getAppointmentId());
         }
     }
     
     private boolean isAppointmentPaid(String appointmentId) {
+        if (paidAppointmentIds.isEmpty()) {
+            refreshPaidAppointmentIds();
+        }
         return paidAppointmentIds.contains(appointmentId);
     }
     
@@ -83,6 +89,7 @@ public class CounterOverview extends BasePanel {
         
         List<Appointment> allAppointments = appointmentDAO.readAll();
         String today = DateUtils.getCurrentDate();
+        String currentTime = getCurrentTime();
         
         List<Appointment> todayAppointments = new ArrayList<>();
         for (Appointment a : allAppointments) {
@@ -94,11 +101,19 @@ public class CounterOverview extends BasePanel {
         int ongoingCount = 0, completedCount = 0;
         double revenue = 0;
         
+        // Calculate revenue based on TODAY's payment date (same as ManagerOverview)
+        List<Payment> payments = paymentDAO.readAll();
+        for (Payment p : payments) {
+            if (p.getPaymentDate() != null && p.getPaymentDate().equals(today)) {
+                revenue += p.getAmount();
+            }
+        }
+        
         for (Appointment a : todayAppointments) {
-            if (a.getStatus() == AppointmentStatus.ASSIGNED) ongoingCount++;
-            if (a.getStatus() == AppointmentStatus.COMPLETED) completedCount++;
-            if (isAppointmentPaid(a.getId())) {
-                revenue += a.getAmount() > 0 ? a.getAmount() : (a.getServiceType() == ServiceType.NORMAL ? 100 : 300);
+            if (a.getStatus() == AppointmentStatus.COMPLETED) {
+                completedCount++;
+            } else if (a.getStatus() == AppointmentStatus.ASSIGNED && isOngoing(a.getStartTime(), currentTime, a.getServiceType())) {
+                ongoingCount++;
             }
         }
         
@@ -112,10 +127,55 @@ public class CounterOverview extends BasePanel {
         statsPanel.add(createStatCard("Appointments Today", String.valueOf(totalToday), null, new Color(59, 130, 246)));
         statsPanel.add(createStatCard("Ongoing Services", String.valueOf(ongoingCount), null, new Color(234, 88, 12)));
         statsPanel.add(createStatCard("Completed Today", String.valueOf(completedCount), null, new Color(34, 197, 94)));
-        statsPanel.add(createStatCard("Revenue Today", String.format("RM %.0f", revenue), null, new Color(168, 85, 247)));
+        statsPanel.add(createStatCard("Revenue Today", String.format("RM %.2f", revenue), null, new Color(168, 85, 247)));
         
         statsPanel.revalidate();
         statsPanel.repaint();
+    }
+    
+    // Helper methods for ongoing service checking
+    private boolean isOngoing(String startTime, String currentTime, ServiceType serviceType) {
+        if (startTime == null || startTime.isEmpty()) return false;
+        
+        int durationHours = (serviceType == ServiceType.MAJOR) ? 3 : 1;
+        String endTime = addHoursToTime(startTime, durationHours);
+        
+        return isTimeBetween(currentTime, startTime, endTime);
+    }
+    
+    private boolean isTimeBetween(String current, String start, String end) {
+        try {
+            String[] currentParts = current.split(":");
+            String[] startParts = start.split(":");
+            String[] endParts = end.split(":");
+            
+            int currentMinutes = Integer.parseInt(currentParts[0]) * 60 + Integer.parseInt(currentParts[1]);
+            int startMinutes = Integer.parseInt(startParts[0]) * 60 + Integer.parseInt(startParts[1]);
+            int endMinutes = Integer.parseInt(endParts[0]) * 60 + Integer.parseInt(endParts[1]);
+            
+            return currentMinutes >= startMinutes && currentMinutes < endMinutes;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+    
+    private String addHoursToTime(String time, int hours) {
+        try {
+            String[] parts = time.split(":");
+            int hour = Integer.parseInt(parts[0]);
+            int minute = Integer.parseInt(parts[1]);
+            
+            hour += hours;
+            
+            return String.format("%02d:%02d", hour, minute);
+        } catch (Exception e) {
+            return time;
+        }
+    }
+    
+    private String getCurrentTime() {
+        java.time.LocalTime now = java.time.LocalTime.now();
+        return String.format("%02d:%02d", now.getHour(), now.getMinute());
     }
     
     private JPanel createStatCard(String label, String value, String subValue, Color accentColor) {
@@ -301,8 +361,8 @@ public class CounterOverview extends BasePanel {
         contentRow.add(createTableCard("Pending Payments", pendingPaymentsTable, 
             "Appointments waiting for payment collection", new Color(234, 179, 8), 280));
         
-        contentRow.add(createTableCard("Pending Appointments", pendingAppointmentsTable, 
-            "Appointments waiting for technician assignment or scheduling", new Color(59, 130, 246), 320));
+        contentRow.add(createTableCard("Active Appointments", pendingAppointmentsTable, 
+            "Appointments currently pending, scheduled, or assigned to technicians", new Color(59, 130, 246), 320));
         
         mainPanel.add(contentRow);
         
@@ -384,6 +444,15 @@ public class CounterOverview extends BasePanel {
         pendingAppointmentsModel.setRowCount(0);
         
         List<Appointment> allAppointments = appointmentDAO.readAll();
+        List<Payment> allPayments = paymentDAO.readAll();
+        
+        // Create a set of paid appointment IDs
+        Set<String> paidIds = new HashSet<>();
+        for (Payment p : allPayments) {
+            paidIds.add(p.getAppointmentId());
+        }
+        
+        String today = DateUtils.getCurrentDate();
         
         for (Appointment appt : allAppointments) {
             if (appt.getStatus() == AppointmentStatus.CANCELLED) {
@@ -392,9 +461,11 @@ public class CounterOverview extends BasePanel {
             
             User customer = userDAO.findById(appt.getCustomerId());
             String customerName = customer != null ? customer.getFullName() : "Unknown";
+            boolean isPaid = paidIds.contains(appt.getId());
             
-            // Pending payments (COMPLETED but not paid)
-            if (appt.getStatus() == AppointmentStatus.COMPLETED && !isAppointmentPaid(appt.getId())) {
+            // Pending payments: Show appointments that are COMPLETED or ASSIGNED (not paid yet)
+            // This includes appointments that are ready for payment or currently being serviced
+            if ((appt.getStatus() == AppointmentStatus.COMPLETED || appt.getStatus() == AppointmentStatus.ASSIGNED) && !isPaid) {
                 pendingPaymentsModel.addRow(new Object[]{
                     appt.getId(),
                     customerName,
@@ -404,8 +475,9 @@ public class CounterOverview extends BasePanel {
                 });
             }
             
-            // Pending appointments (ASSIGNED or PENDING)
-            if (appt.getStatus() == AppointmentStatus.ASSIGNED || appt.getStatus() == AppointmentStatus.PENDING) {
+            // Pending appointments: Show appointments that are PENDING or ASSIGNED (not COMPLETED or CANCELLED)
+            // This shows all active appointments that haven't been completed yet
+            if (appt.getStatus() == AppointmentStatus.PENDING || appt.getStatus() == AppointmentStatus.ASSIGNED) {
                 String statusDisplay = appt.getStatus() == AppointmentStatus.ASSIGNED ? "ASSIGNED" : "PENDING";
                 String technicianName = resolveUserName(appt.getTechnicianId());
                 
@@ -421,16 +493,92 @@ public class CounterOverview extends BasePanel {
             }
         }
         
+        // Handle empty states
         if (pendingPaymentsModel.getRowCount() == 0) {
-            pendingPaymentsModel.addRow(new Object[]{"—", "—", "No pending payments", "—", "—"});
-            // Make the empty row unselectable
+            pendingPaymentsModel.setRowCount(0);
+            pendingPaymentsModel.addRow(new Object[]{"", "", "No pending payments", "", ""});
             pendingPaymentsTable.setEnabled(false);
+            
+            pendingPaymentsTable.setDefaultRenderer(Object.class, new DefaultTableCellRenderer() {
+                @Override
+                public Component getTableCellRendererComponent(JTable table, Object value,
+                        boolean isSelected, boolean hasFocus, int row, int column) {
+                    Component c = super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
+                    JLabel label = (JLabel) c;
+                    
+                    if (row == 0 && table.getRowCount() == 1) {
+                        if (column == 2 && "No pending payments".equals(value)) {
+                            label.setHorizontalAlignment(JLabel.CENTER);
+                            label.setVerticalAlignment(JLabel.CENTER);
+                            label.setFont(new Font("Segoe UI", Font.ITALIC, 13));
+                            label.setForeground(TEXT_MUTED);
+                            label.setBorder(BorderFactory.createEmptyBorder(30, 0, 30, 0));
+                        } else {
+                            label.setText("");
+                            label.setBorder(BorderFactory.createEmptyBorder(30, 0, 30, 0));
+                        }
+                    }
+                    return label;
+                }
+            });
+        } else {
+            pendingPaymentsTable.setEnabled(true);
+            pendingPaymentsTable.setDefaultRenderer(Object.class, new NonSelectableTableCellRenderer());
         }
         
         if (pendingAppointmentsModel.getRowCount() == 0) {
-            pendingAppointmentsModel.addRow(new Object[]{"—", "—", "No pending appointments", "—", "—", "—", "—"});
+            pendingAppointmentsModel.setRowCount(0);
+            pendingAppointmentsModel.addRow(new Object[]{"", "", "", "No pending appointments", "", "", ""});
             pendingAppointmentsTable.setEnabled(false);
+            
+            pendingAppointmentsTable.setDefaultRenderer(Object.class, new DefaultTableCellRenderer() {
+                @Override
+                public Component getTableCellRendererComponent(JTable table, Object value,
+                        boolean isSelected, boolean hasFocus, int row, int column) {
+                    Component c = super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
+                    JLabel label = (JLabel) c;
+                    
+                    if (row == 0 && table.getRowCount() == 1) {
+                        if (column == 3 && "No pending appointments".equals(value)) {
+                            label.setHorizontalAlignment(JLabel.CENTER);
+                            label.setVerticalAlignment(JLabel.CENTER);
+                            label.setFont(new Font("Segoe UI", Font.ITALIC, 13));
+                            label.setForeground(TEXT_MUTED);
+                            label.setBorder(BorderFactory.createEmptyBorder(30, 0, 30, 0));
+                        } else {
+                            label.setText("");
+                            label.setBorder(BorderFactory.createEmptyBorder(30, 0, 30, 0));
+                        }
+                    }
+                    return label;
+                }
+            });
+        } else {
+            pendingAppointmentsTable.setEnabled(true);
+            pendingAppointmentsTable.setDefaultRenderer(Object.class, new NonSelectableTableCellRenderer());
         }
+        
+        // Refresh table display
+        pendingPaymentsTable.revalidate();
+        pendingPaymentsTable.repaint();
+        pendingAppointmentsTable.revalidate();
+        pendingAppointmentsTable.repaint();
+    }
+    
+    private void setEmptyOverlay(JTable table, String message) {
+
+        JViewport viewport = (JViewport) table.getParent();
+
+        JPanel overlay = new JPanel(new GridBagLayout());
+        overlay.setBackground(Color.WHITE);
+
+        JLabel label = new JLabel(message);
+        label.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+        label.setForeground(TEXT_MUTED);
+
+        overlay.add(label);
+
+        viewport.setView(overlay);
     }
     
     private JButton createStyledButton(String text, Color color) {
