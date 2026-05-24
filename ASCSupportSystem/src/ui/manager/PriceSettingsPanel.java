@@ -277,8 +277,13 @@ public class PriceSettingsPanel extends BasePanel {
 
         JScrollPane scrollPane = new JScrollPane(historyContent);
         scrollPane.setBorder(null);
-        scrollPane.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
         scrollPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED);
+        scrollPane.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
+
+        scrollPane.setPreferredSize(new Dimension(0, 250));
+        scrollPane.setMinimumSize(new Dimension(0, 250));
+
+        scrollPane.getVerticalScrollBar().setUnitIncrement(20);
         scrollPane.getViewport().setBackground(Color.WHITE);
         scrollPane.getVerticalScrollBar().setUnitIncrement(16);
         panel.add(scrollPane, BorderLayout.CENTER);
@@ -318,10 +323,13 @@ public class PriceSettingsPanel extends BasePanel {
             historyContent.add(emptyPanel);
         } else {
             for (PriceHistory history : historyList) {
-                historyContent.add(createHistoryEntry(history));
-            }
+            	JPanel entry = createHistoryEntry(history);
+            	entry.setAlignmentX(Component.LEFT_ALIGNMENT);
+            	historyContent.add(entry);
+            	historyContent.add(Box.createVerticalStrut(10));            }
         }
-
+        
+        historyContent.add(Box.createVerticalGlue());
         historyContent.revalidate();
         historyContent.repaint();
     }

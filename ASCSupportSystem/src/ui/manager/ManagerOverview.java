@@ -145,6 +145,7 @@ public class ManagerOverview extends BasePanel {
         
         List<Appointment> allAppointments = appointmentDAO.readAll();
         String today = DateUtils.getCurrentDate();
+        String currentTime = getCurrentTime(); // Get current time in HH:MM format
         
         List<Appointment> todayAppointments = new ArrayList<>();
         for (Appointment a : allAppointments) {
@@ -175,8 +176,11 @@ public class ManagerOverview extends BasePanel {
         }
         
         for (Appointment a : todayAppointments) {
-            if (a.getStatus() == AppointmentStatus.ASSIGNED) ongoingCount++;
-            if (a.getStatus() == AppointmentStatus.COMPLETED) completedCount++;
+            if (a.getStatus() == AppointmentStatus.COMPLETED) {
+                completedCount++;
+            } else if (a.getStatus() == AppointmentStatus.ASSIGNED && isOngoing(a.getStartTime(), currentTime, a.getServiceType())) {
+                ongoingCount++;
+            }
         }
         
         panel.add(createStatCard("Appointments Today", String.valueOf(todayAppointments.size()), null, new Color(59, 130, 246)));
@@ -522,6 +526,7 @@ public class ManagerOverview extends BasePanel {
         List<Technician> techs = userDAO.readTechnicians();
         List<Appointment> appointments = appointmentDAO.readAll();
         String today = DateUtils.getCurrentDate();
+        String currentTime = getCurrentTime(); // Get current time in HH:MM format
         
         for (int i = 0; i < techs.size(); i++) {
             Technician tech = techs.get(i);
@@ -530,12 +535,12 @@ public class ManagerOverview extends BasePanel {
             
             for (Appointment a : appointments) {
                 if (tech.getId().equals(a.getTechnicianId())) {
-                    if (a.getDate() != null && a.getDate().equals(today) && 
-                        a.getStatus() == AppointmentStatus.ASSIGNED) {
-                        isBusy = true;
-                    }
                     if (a.getDate() != null && a.getDate().equals(today)) {
                         todayJobs++;
+                        // Check if technician is currently working on this appointment
+                        if (a.getStatus() == AppointmentStatus.ASSIGNED && isOngoing(a.getStartTime(), currentTime, a.getServiceType())) {
+                            isBusy = true;
+                        }
                     }
                 }
             }
@@ -604,6 +609,50 @@ public class ManagerOverview extends BasePanel {
         
         contentPanel.revalidate();
         contentPanel.repaint();
+    }
+    
+    private boolean isOngoing(String startTime, String currentTime, ServiceType serviceType) {
+        if (startTime == null || startTime.isEmpty()) return false;
+        
+        int durationHours = (serviceType == ServiceType.MAJOR) ? 3 : 1;
+        String endTime = addHoursToTime(startTime, durationHours);
+        
+        return isTimeBetween(currentTime, startTime, endTime);
+    }
+
+    private boolean isTimeBetween(String current, String start, String end) {
+        try {
+            String[] currentParts = current.split(":");
+            String[] startParts = start.split(":");
+            String[] endParts = end.split(":");
+            
+            int currentMinutes = Integer.parseInt(currentParts[0]) * 60 + Integer.parseInt(currentParts[1]);
+            int startMinutes = Integer.parseInt(startParts[0]) * 60 + Integer.parseInt(startParts[1]);
+            int endMinutes = Integer.parseInt(endParts[0]) * 60 + Integer.parseInt(endParts[1]);
+            
+            return currentMinutes >= startMinutes && currentMinutes < endMinutes;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    private String addHoursToTime(String time, int hours) {
+        try {
+            String[] parts = time.split(":");
+            int hour = Integer.parseInt(parts[0]);
+            int minute = Integer.parseInt(parts[1]);
+            
+            hour += hours;
+            
+            return String.format("%02d:%02d", hour, minute);
+        } catch (Exception e) {
+            return time;
+        }
+    }
+
+    private String getCurrentTime() {
+        java.time.LocalTime now = java.time.LocalTime.now();
+        return String.format("%02d:%02d", now.getHour(), now.getMinute());
     }
     
     private JPanel createReviewPanel() {
@@ -716,7 +765,6 @@ public class ManagerOverview extends BasePanel {
                 reviewContentPanel.add(reviewItem);
                 itemCount++;
                 
-                // Add separator line only if this is NOT the last item (i.e., not the 3rd comment)
                 if (itemCount < 3 && i > start) {
                     JSeparator separator = new JSeparator();
                     separator.setForeground(new Color(230, 230, 230));
@@ -737,10 +785,31 @@ public class ManagerOverview extends BasePanel {
         refreshTechStatus(techStatusContentPanel);
         refreshReview();
         
+        try {
+            Component[] components = getComponents();
+            if (components.length > 0 && components[0] instanceof JPanel) {
+                JPanel mainPanel = (JPanel) components[0];
+                Component[] mainComponents = mainPanel.getComponents();
+                if (mainComponents.length > 0 && mainComponents[0] instanceof JPanel) {
+                    JPanel headerPanel = (JPanel) mainComponents[0];
+                    Component[] headerComponents = headerPanel.getComponents();
+                    if (headerComponents.length > 1 && headerComponents[1] instanceof JPanel) {
+                        JPanel rightPanel = (JPanel) headerComponents[1];
+                        Component[] rightComponents = rightPanel.getComponents();
+                        if (rightComponents.length > 0 && rightComponents[0] instanceof JLabel) {
+                            ((JLabel) rightComponents[0]).setText(DateUtils.getCurrentDate());
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("Could not update date label: " + e.getMessage());
+        }
+        
         revalidate();
         repaint();
         
-        JOptionPane.showMessageDialog(this, "Dashboard data has been refreshed from files.", 
+        JOptionPane.showMessageDialog(this, "Dashboard data has been refreshed.", 
             "Refresh Complete", JOptionPane.INFORMATION_MESSAGE);
     }
     

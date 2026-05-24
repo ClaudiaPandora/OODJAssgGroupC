@@ -700,11 +700,11 @@ public class ReportsPanel extends BasePanel {
                 refreshContentPanels();
                 mainPanel.revalidate();
                 mainPanel.repaint();
-                JOptionPane.showMessageDialog(this, "Data has been refreshed from files.", 
+                JOptionPane.showMessageDialog(this, "Data has been refreshed.", 
                     "Refresh Complete", JOptionPane.INFORMATION_MESSAGE);
             } else {
                 refreshContentPanels();
-                JOptionPane.showMessageDialog(ReportsPanel.this, "Data has been refreshed from files.", 
+                JOptionPane.showMessageDialog(ReportsPanel.this, "Data has been refreshed.", 
                     "Refresh Complete", JOptionPane.INFORMATION_MESSAGE);
             }
         });
@@ -1015,7 +1015,9 @@ public class ReportsPanel extends BasePanel {
                     String[] parts = timeStr.split(":");
                     int hour = Integer.parseInt(parts[0]);
                     if (hour >= 0 && hour < 24) {
-                        hourCounts[hour]++;
+                        // Add weight based on service duration
+                        int weight = (a.getServiceType() == ServiceType.MAJOR) ? 3 : 1;
+                        hourCounts[hour] += weight;
                     }
                 }
             } catch (Exception e) {
@@ -1023,24 +1025,45 @@ public class ReportsPanel extends BasePanel {
             }
         }
         
-        // Find the hour with maximum appointments
-        int maxCount = 0;
+        // Find the hour with maximum weight
+        int maxWeight = 0;
         int peakHourStart = 0;
         for (int i = 0; i < 24; i++) {
-            if (hourCounts[i] > maxCount) {
-                maxCount = hourCounts[i];
+            if (hourCounts[i] > maxWeight) {
+                maxWeight = hourCounts[i];
                 peakHourStart = i;
             }
         }
         
-        if (maxCount == 0) {
+        if (maxWeight == 0) {
             return "No time data available";
         }
         
-        // Find consecutive peak hours (within 70% of max)
-        int peakHourEnd = peakHourStart;
-        for (int i = peakHourStart + 1; i < 24 && hourCounts[i] >= maxCount * 0.7; i++) {
-            peakHourEnd = i;
+        // Determine if peak is from MAJOR or NORMAL services
+        boolean isMajorPeak = false;
+        for (Appointment a : appointments) {
+            try {
+                String timeStr = a.getStartTime();
+                if (timeStr != null && !timeStr.isEmpty()) {
+                    String[] parts = timeStr.split(":");
+                    int hour = Integer.parseInt(parts[0]);
+                    if (hour == peakHourStart && a.getServiceType() == ServiceType.MAJOR) {
+                        isMajorPeak = true;
+                        break;
+                    }
+                }
+            } catch (Exception e) {
+                // Skip invalid time formats
+            }
+        }
+        
+        // Calculate peak duration based on service type
+        int peakDuration = isMajorPeak ? 3 : 1;
+        int peakHourEnd = peakHourStart + peakDuration - 1;
+        
+        // Ensure we don't go beyond 23 (11 PM)
+        if (peakHourEnd >= 24) {
+            peakHourEnd = 23;
         }
         
         String startTime = formatHour(peakHourStart);

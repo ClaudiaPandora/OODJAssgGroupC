@@ -22,6 +22,7 @@ import javax.swing.table.JTableHeader;
 import java.awt.*;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -29,13 +30,13 @@ import java.util.Set;
 
 public class TechnicianOverviewPanel extends BasePanel {
 
-    private final User currentTechnician;
-    private final AppointmentDAO appointmentDAO;
-    private final UserDAO userDAO;
-    private final CommentDAO commentDAO;
-    private final FeedbackDAO techNoteDAO;
-    private final PaymentDAO paymentDAO;
-    private JButton refreshButton;
+	private final User currentTechnician;
+	private AppointmentDAO appointmentDAO;
+	private UserDAO userDAO;
+	private CommentDAO commentDAO;
+	private FeedbackDAO techNoteDAO;
+	private PaymentDAO paymentDAO;
+	private JButton refreshButton;
 
     private JLabel completedJobsLabel;
     private JLabel activeJobsLabel;
@@ -81,6 +82,11 @@ public class TechnicianOverviewPanel extends BasePanel {
     }
 
     private void refreshData() {
+        this.appointmentDAO = new AppointmentDAO();
+        this.userDAO = new UserDAO();
+        this.commentDAO = new CommentDAO();
+        this.techNoteDAO = new FeedbackDAO();
+        this.paymentDAO = new PaymentDAO();
         refreshPaidAppointmentIds();
         refreshDashboard();
     }
@@ -189,7 +195,8 @@ public class TechnicianOverviewPanel extends BasePanel {
         statsPanel.setBackground(PANEL_BG);
         statsPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 75));
         statsPanel.setPreferredSize(new Dimension(0, 75));
-        mainPanel.add(statsPanel);        mainPanel.add(Box.createVerticalStrut(15));
+        mainPanel.add(statsPanel);
+        mainPanel.add(Box.createVerticalStrut(15));
         mainPanel.add(createMiddlePanel());
         mainPanel.add(Box.createVerticalStrut(15));
         mainPanel.add(createRecentActivityPanel());
@@ -230,55 +237,67 @@ public class TechnicianOverviewPanel extends BasePanel {
         return headerPanel;
     }
     
-    private JPanel createStatsPanel() {
-        JPanel panel = new JPanel(new GridLayout(1, 4, 12, 0));
-        panel.setBackground(PANEL_BG);
-        panel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 75));
-        panel.setPreferredSize(new Dimension(0, 75));
-        
-        refreshStats(panel);
-        
-        return panel;
-    }
-    
     private void refreshStats(JPanel panel) {
         panel.removeAll();
         
         List<Appointment> allAppointments = appointmentDAO.findByTechnicianId(currentTechnician.getId());
         String today = DateUtils.getCurrentDate();
+        String currentTime = getCurrentTime();
         
-        List<Appointment> todayAppointments = new ArrayList<>();
-        for (Appointment a : allAppointments) {
-            if (a.getDate() != null && a.getDate().equals(today)) {
-                todayAppointments.add(a);
-            }
-        }
-        
-        int ongoingCount = 0, completedCount = 0;
+        int activeCount = 0;
+        int completedCount = 0;
         double revenue = 0;
         
         List<Payment> payments = paymentDAO.readAll();
-        Set<String> paidAppointmentIds = new HashSet<>();
-        
+        Set<String> paidIds = new HashSet<>();
         for (Payment p : payments) {
-            paidAppointmentIds.add(p.getAppointmentId());
+            paidIds.add(p.getAppointmentId());
         }
         
-        for (Appointment a : todayAppointments) {
-            if (a.getStatus() == AppointmentStatus.ASSIGNED) ongoingCount++;
-            if (a.getStatus() == AppointmentStatus.COMPLETED) completedCount++;
-            if (paidAppointmentIds.contains(a.getId())) {
+        for (Appointment a : allAppointments) {
+            // Active jobs: ASSIGNED and currently ongoing
+            if (a.getStatus() == AppointmentStatus.ASSIGNED && a.getDate().equals(today) && isOngoing(a.getStartTime(), currentTime)) {
+                activeCount++;
+            }
+            // Completed jobs: COMPLETED appointments
+            if (a.getStatus() == AppointmentStatus.COMPLETED) {
+                completedCount++;
+            }
+            // Revenue: Only from completed and paid appointments
+            if (a.getStatus() == AppointmentStatus.COMPLETED && paidIds.contains(a.getId())) {
                 revenue += getPaymentAmount(a);
             }
         }
         
-        panel.add(createStatCard("Active Jobs", String.valueOf(ongoingCount), null, BLUE));
+        panel.add(createStatCard("Active Jobs", String.valueOf(activeCount), null, BLUE));
         panel.add(createStatCard("Completed Jobs", String.valueOf(completedCount), null, GREEN));
-        panel.add(createStatCard("Revenue", String.format("RM %.0f", revenue), null, TEAL));
+        panel.add(createStatCard("Revenue", String.format("RM %.2f", revenue), null, TEAL));
         panel.add(createStatCard("Avg Rating", String.format("%.1f", calculateAverageRating()), null, ORANGE));
         
         panel.revalidate();
         panel.repaint();
+    }
+    
+    private boolean isOngoing(String startTime, String currentTime) {
+        if (startTime == null || startTime.isEmpty()) return false;
+        
+        try {
+            String[] startParts = startTime.split(":");
+            String[] currentParts = currentTime.split(":");
+            
+            int startMinutes = Integer.parseInt(startParts[0]) * 60 + Integer.parseInt(startParts[1]);
+            int currentMinutes = Integer.parseInt(currentParts[0]) * 60 + Integer.parseInt(currentParts[1]);
+            
+            // Consider ongoing if within 3 hours of start time
+            return currentMinutes >= startMinutes && currentMinutes < startMinutes + 180;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+    
+    private String getCurrentTime() {
+        LocalTime now = LocalTime.now();
+        return String.format("%02d:%02d", now.getHour(), now.getMinute());
     }
     
     private JPanel createStatCard(String label, String value, String subValue, Color accentColor) {
@@ -497,9 +516,6 @@ public class TechnicianOverviewPanel extends BasePanel {
     }
     
     private String getDisplayStatus(Appointment appointment) {
-        if (paidAppointmentIds.contains(appointment.getId())) {
-            return "COMPLETED";
-        }
         return appointment.getStatus().toString();
     }
     
@@ -518,7 +534,6 @@ public class TechnicianOverviewPanel extends BasePanel {
 
     private void refreshDashboard() {
         refreshPaidAppointmentIds();
-        
         refreshStats(statsPanel);
         
         List<Appointment> appointments = appointmentDAO.findByTechnicianId(currentTechnician.getId());
@@ -533,9 +548,7 @@ public class TechnicianOverviewPanel extends BasePanel {
         int ratingCount = 0;
 
         for (Comment comment : commentDAO.readAll()) {
-            // Only count comments for this technician
             if (currentTechnician.getId().equals(comment.getTechnicianId())) {
-                // Only count valid ratings (1-5), exclude 0
                 int rating = comment.getRating();
                 if (rating >= 1 && rating <= 5) {
                     totalRating += rating;
@@ -552,6 +565,7 @@ public class TechnicianOverviewPanel extends BasePanel {
 
         List<Appointment> priorityJobs = new ArrayList<>();
         for (Appointment appointment : appointments) {
+            // Show ASSIGNED and PENDING appointments that are not completed
             if (appointment.getStatus() == AppointmentStatus.ASSIGNED
                     || appointment.getStatus() == AppointmentStatus.PENDING) {
                 priorityJobs.add(appointment);
@@ -586,12 +600,19 @@ public class TechnicianOverviewPanel extends BasePanel {
         for (int i = 0; i < limit; i++) {
             Appointment appointment = recent.get(i);
             double amount = getPaymentAmount(appointment);
+            String status = appointment.getStatus().toString();
+            
+            // Show COMPLETED status only if paid, otherwise show as COMPLETED (unpaid)
+            if (status.equals("COMPLETED") && !isPaid(appointment.getId())) {
+                status = "COMPLETED (Unpaid)";
+            }
+            
             activityTableModel.addRow(new Object[]{
                     appointment.getId(),
                     appointment.getDate(),
                     resolveUserName(appointment.getCustomerId()),
                     appointment.getServiceType(),
-                    getDisplayStatus(appointment),
+                    status,
                     amount > 0 ? String.format("RM %.2f", amount) : "-"
             });
         }
@@ -606,15 +627,18 @@ public class TechnicianOverviewPanel extends BasePanel {
         List<String[]> notifications = buildNotifications(appointments);
 
         if (notifications.isEmpty()) {
-            notificationsListPanel.add(createNotificationItem(
-                    "All caught up",
-                    "No urgent appointment updates or customer rating alerts.",
-                    GREEN
-            ));
+            JPanel emptyPanel = new JPanel(new GridBagLayout());
+            emptyPanel.setBackground(Color.WHITE);
+            emptyPanel.setPreferredSize(new Dimension(0, 150));
+            
+            JLabel emptyLabel = new JLabel("All caught up - No pending notifications");
+            emptyLabel.setFont(new Font("Segoe UI", Font.ITALIC, 12));
+            emptyLabel.setForeground(TEXT_MUTED);
+            emptyPanel.add(emptyLabel);
+            notificationsListPanel.add(emptyPanel);
         } else {
             for (String[] item : notifications) {
                 notificationsListPanel.add(createNotificationItem(item[0], item[1], resolveNotificationColor(item[2])));
-                // Add separator between notifications except last one
                 if (notifications.indexOf(item) < notifications.size() - 1) {
                     JSeparator separator = new JSeparator();
                     separator.setForeground(new Color(230, 230, 230));
@@ -631,66 +655,65 @@ public class TechnicianOverviewPanel extends BasePanel {
     private List<String[]> buildNotifications(List<Appointment> appointments) {
         List<String[]> items = new ArrayList<>();
         List<Feedback> notes = techNoteDAO.readAll();
-        Set<String> processedAppointments = new HashSet<>(); // Track processed appointments
-        Set<String> processedComments = new HashSet<>(); // Track processed comment notifications
+        Set<String> processedAppointments = new HashSet<>();
+        Set<String> processedComments = new HashSet<>();
 
         for (Appointment appointment : appointments) {
             if (processedAppointments.contains(appointment.getId())) {
-                continue; // Skip already processed appointments
+                continue;
             }
             
+            // Newly assigned jobs (ASSIGNED and not yet started/completed)
             if (appointment.getStatus() == AppointmentStatus.ASSIGNED && !isPaid(appointment.getId())) {
                 items.add(new String[]{
-                        "Assigned job waiting",
-                        appointment.getId() + " is assigned for " + appointment.getDate() + " at " + appointment.getStartTime() + ".",
+                        "New job assigned",
+                        "Appointment " + appointment.getId() + " assigned for " + appointment.getDate() + " at " + appointment.getStartTime(),
                         "BLUE"
                 });
                 processedAppointments.add(appointment.getId());
             }
 
+            // Pending jobs that need attention
             if (appointment.getStatus() == AppointmentStatus.PENDING && !isPaid(appointment.getId())) {
                 items.add(new String[]{
-                        "Pending job",
-                        appointment.getId() + " is still pending and may need follow-up.",
+                        "Pending job awaiting assignment",
+                        "Appointment " + appointment.getId() + " is pending and needs technician assignment",
                         "ORANGE"
                 });
                 processedAppointments.add(appointment.getId());
             }
 
-            if ((appointment.getStatus() == AppointmentStatus.ASSIGNED
-                    || appointment.getStatus() == AppointmentStatus.COMPLETED)
-                    && !hasTechnicianNote(notes, appointment.getId()) && !isPaid(appointment.getId())) {
+            // Missing service notes for completed jobs
+            if (appointment.getStatus() == AppointmentStatus.COMPLETED && !hasTechnicianNote(notes, appointment.getId())) {
                 items.add(new String[]{
-                        "No service note",
-                        appointment.getId() + " has no technician feedback or service note yet.",
+                        "Missing service note",
+                        "Appointment " + appointment.getId() + " completed but no service note added",
                         "ORANGE"
                 });
                 processedAppointments.add(appointment.getId());
             }
         }
 
-        // Process comments for this technician only, avoid duplicates
+        // Process comments for this technician
         for (Comment comment : commentDAO.readAll()) {
-            // Only show comments for this specific technician
             if (currentTechnician.getId().equals(comment.getTechnicianId())) {
-                String commentKey = comment.getAppointmentId() + "_" + comment.getRating();
+                String commentKey = comment.getAppointmentId();
                 
-                // Skip if already processed
                 if (processedComments.contains(commentKey)) {
                     continue;
                 }
                 
                 if (comment.getRating() <= 2) {
                     items.add(new String[]{
-                            "Low customer rating",
-                            "Appointment " + comment.getAppointmentId() + " received " + comment.getRating() + "/5. Review the comment.",
+                            "Low rating alert",
+                            "Appointment " + comment.getAppointmentId() + " received " + comment.getRating() + "/5 rating",
                             "RED"
                     });
                     processedComments.add(commentKey);
                 } else if (comment.getRating() >= 4) {
                     items.add(new String[]{
                             "Positive feedback",
-                            "Appointment " + comment.getAppointmentId() + " received " + comment.getRating() + "/5 from a customer.",
+                            "Appointment " + comment.getAppointmentId() + " received " + comment.getRating() + "/5 rating",
                             "GREEN"
                     });
                     processedComments.add(commentKey);
@@ -730,7 +753,7 @@ public class TechnicianOverviewPanel extends BasePanel {
         titleLabel.setForeground(new Color(31, 41, 55));
         titleLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
 
-        JLabel detailLabel = new JLabel("<html>" + detail + "</html>");
+        JLabel detailLabel = new JLabel(detail);
         detailLabel.setFont(new Font("Segoe UI", Font.PLAIN, 11));
         detailLabel.setForeground(TEXT_MUTED);
         detailLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
@@ -800,41 +823,30 @@ public class TechnicianOverviewPanel extends BasePanel {
                     BorderFactory.createEmptyBorder(12, 18, 12, 10)
             ));
             
-            if (!isSelected) {
-                label.setBackground(Color.WHITE);
-                label.setForeground(new Color(31, 41, 55));
+            // Color code status column
+            if (column == 4 && value != null) {
+                String status = value.toString();
+                if (status.equals("ASSIGNED")) {
+                    label.setForeground(BLUE);
+                } else if (status.equals("PENDING")) {
+                    label.setForeground(ORANGE);
+                } else if (status.equals("COMPLETED")) {
+                    label.setForeground(GREEN);
+                } else if (status.contains("Unpaid")) {
+                    label.setForeground(ORANGE);
+                } else {
+                    label.setForeground(new Color(31, 41, 55));
+                }
             } else {
-                label.setBackground(TABLE_SELECTION);
                 label.setForeground(new Color(31, 41, 55));
             }
             
-            return label;
-        }
-    }
-
-    private class StatusRenderer extends DefaultTableCellRenderer {
-        @Override
-        public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected,
-                                                       boolean hasFocus, int row, int column) {
-            JLabel label = (JLabel) super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
-            label.setHorizontalAlignment(SwingConstants.LEFT);
-            label.setFont(new Font("Segoe UI", Font.BOLD, 12));
-
             if (!isSelected) {
                 label.setBackground(Color.WHITE);
-                String status = value == null ? "" : value.toString();
-
-                if ("COMPLETED".equals(status)) {
-                    label.setForeground(GREEN);
-                } else if ("ASSIGNED".equals(status)) {
-                    label.setForeground(BLUE);
-                } else if ("PENDING".equals(status)) {
-                    label.setForeground(ORANGE);
-                } else {
-                    label.setForeground(Color.BLACK);
-                }
+            } else {
+                label.setBackground(TABLE_SELECTION);
             }
-
+            
             return label;
         }
     }

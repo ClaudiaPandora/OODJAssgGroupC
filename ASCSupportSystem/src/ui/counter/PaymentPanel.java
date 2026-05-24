@@ -221,13 +221,6 @@ public class PaymentPanel extends BasePanel {
         List<Appointment> allAppointments = appointmentDAO.readAll();
         List<Payment> payments = paymentDAO.readAll();
         
-        System.out.println("Loading payment data. Total appointments: " + allAppointments.size());
-        System.out.println("Total payments found: " + payments.size());
-        
-        for (Payment p : payments) {
-            System.out.println("Payment for appointment: " + p.getAppointmentId() + " - Amount: " + p.getAmount());
-        }
-        
         for (Appointment appt : allAppointments) {
             if (appt.getStatus() == AppointmentStatus.CANCELLED) {
                 continue;
@@ -240,7 +233,6 @@ public class PaymentPanel extends BasePanel {
                 if (p.getAppointmentId().equals(appt.getId())) {
                     existingPayment = p;
                     isPaid = true;
-                    System.out.println("Appointment " + appt.getId() + " is PAID");
                     break;
                 }
             }
@@ -365,7 +357,10 @@ public class PaymentPanel extends BasePanel {
                     appt.setAmount(appointmentAmount);
                     appointmentDAO.update(appt);
                     
-                    loadPaymentData();
+                    // IMPORTANT: Refresh the DAOs to get fresh data
+                    refreshData();
+                    
+                    // Show receipt
                     showReceipt(payment, appt);
                 } else {
                     JOptionPane.showMessageDialog(this, "Failed to process payment. Please try again.", 
@@ -927,6 +922,7 @@ public class PaymentPanel extends BasePanel {
         private JButton button;
         private String appointmentId;
         private String actionType;
+        private int currentRow;  // Add this to track row
         
         public ButtonEditor() {
             panel = new JPanel(new FlowLayout(FlowLayout.CENTER, 5, 8));
@@ -942,6 +938,7 @@ public class PaymentPanel extends BasePanel {
             
             appointmentId = (String) table.getValueAt(row, 1);
             actionType = value != null ? value.toString() : "";
+            currentRow = row;  // Store current row
             
             Color btnColor = actionType.equals("COLLECT PAYMENT") ? ORANGE : GREEN;
             button = new JButton(actionType);
@@ -956,6 +953,10 @@ public class PaymentPanel extends BasePanel {
             button.addActionListener(e -> {
                 if (actionType.equals("COLLECT PAYMENT")) {
                     collectPayment(appointmentId);
+                    // Refresh the entire table after payment
+                    SwingUtilities.invokeLater(() -> {
+                        refreshData();
+                    });
                 } else if (actionType.equals("VIEW RECEIPT")) {
                     // Get fresh data when viewing receipt
                     Appointment appt = appointmentDAO.findById(appointmentId);
