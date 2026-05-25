@@ -42,6 +42,7 @@ public class AppointmentPanel extends BasePanel {
     private JButton refreshButton;
     private JButton editButton;
     private JButton cancelAppointmentButton;
+    private JComboBox<String> sortCombo;
     
     private List<Technician> technicians;
     private List<Customer> customers;
@@ -97,6 +98,10 @@ public class AppointmentPanel extends BasePanel {
         refreshButton = createStyledButton("Refresh", new Color(34, 197, 94));
         editButton = createStyledButton("Edit Appointment", new Color(59, 130, 246));
         cancelAppointmentButton = createStyledButton("Cancel Appointment", new Color(220, 38, 38));
+        sortCombo = new JComboBox<>(new String[]{"Nearest Date", "Latest Date"});
+        sortCombo.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        sortCombo.setBackground(Color.WHITE);
+        sortCombo.setPreferredSize(new Dimension(130, 34));
     }
     
     private void setupTableStyle() {
@@ -192,6 +197,13 @@ public class AppointmentPanel extends BasePanel {
         
         JPanel rightPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
         rightPanel.setBackground(PANEL_BG);
+
+        JLabel sortLabel = new JLabel("Sort:");
+        sortLabel.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        sortLabel.setForeground(new Color(31, 41, 55));
+        rightPanel.add(sortLabel);
+        sortCombo.addActionListener(e -> loadAppointmentData());
+        rightPanel.add(sortCombo);
         
         addButton.addActionListener(e -> showAppointmentDialog(null));
         rightPanel.add(addButton);
@@ -273,7 +285,15 @@ public class AppointmentPanel extends BasePanel {
     private void loadAppointmentData() {
         tableModel.setRowCount(0);
         List<Appointment> appointments = appointmentDAO.readAll();
-        appointments.sort((a, b) -> b.getDate().compareTo(a.getDate()));
+        String selectedSort = sortCombo == null ? "Nearest Date" : (String) sortCombo.getSelectedItem();
+        appointments.sort((a, b) -> {
+            String aDateTime = safeDateTime(a);
+            String bDateTime = safeDateTime(b);
+            if ("Latest Date".equals(selectedSort)) {
+                return bDateTime.compareTo(aDateTime);
+            }
+            return aDateTime.compareTo(bDateTime);
+        });
         
         for (Appointment appt : appointments) {
             User customer = userDAO.findById(appt.getCustomerId());
@@ -296,6 +316,12 @@ public class AppointmentPanel extends BasePanel {
             };
             tableModel.addRow(row);
         }
+    }
+
+    private String safeDateTime(Appointment appointment) {
+        String date = appointment.getDate() == null ? "" : appointment.getDate();
+        String time = appointment.getStartTime() == null ? "" : appointment.getStartTime();
+        return date + " " + time;
     }
     
     private String getStatusDisplay(AppointmentStatus status) {

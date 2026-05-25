@@ -12,3 +12,5 @@ C0011|A0011|U001||C002|Bad attitude from the counter staff.|1
 C0012|A0013|U002|T002||Very thorough work, car runs great!|5
 C0013|A0014|U003|T001||Quick and efficient service.|4
 C0014|A0015|U001|T001||Waiting for my appointment.|0
+C0015|A0006|U001|T001||So so|3
+C0016|A0006|U001||C001|So so|3

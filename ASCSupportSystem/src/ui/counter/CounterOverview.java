@@ -112,7 +112,7 @@ public class CounterOverview extends BasePanel {
         for (Appointment a : todayAppointments) {
             if (a.getStatus() == AppointmentStatus.COMPLETED) {
                 completedCount++;
-            } else if (a.getStatus() == AppointmentStatus.ASSIGNED && isOngoing(a.getStartTime(), currentTime, a.getServiceType())) {
+            } else if (a.getStatus() == AppointmentStatus.ASSIGNED) {
                 ongoingCount++;
             }
         }
