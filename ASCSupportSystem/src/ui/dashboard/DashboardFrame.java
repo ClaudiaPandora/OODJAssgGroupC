@@ -132,7 +132,6 @@ public class DashboardFrame extends BaseFrame {
         } else if (currentUser.getRole() == UserRole.TECHNICIAN) {
             contentPanel.add(new TechnicianOverviewPanel(currentUser), "OVERVIEW");
             contentPanel.add(new MyJobsPanel(currentUser), "JOBS");
-            contentPanel.add(new MySchedulePanel(currentUser), "MY_SCHEDULE");
         } else if (currentUser.getRole() == UserRole.CUSTOMER) {
             contentPanel.add(new CustomerOverviewPanel(currentUser), "OVERVIEW");
             contentPanel.add(new CustomerHistoryPanel(currentUser), "HISTORY");

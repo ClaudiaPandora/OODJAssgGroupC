@@ -81,6 +81,70 @@ public class CustomerCommentHistoryPanel extends BasePanel {
         setTableColumnWidths();
     }
 
+    private void setupTableStyle(JTable table) {
+        table.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        table.setRowHeight(45);
+        table.setFillsViewportHeight(true);
+        table.setFocusable(false);
+        table.setRowSelectionAllowed(true);
+        table.setColumnSelectionAllowed(false);
+        table.setShowVerticalLines(false);
+        table.setShowHorizontalLines(true);
+        table.setGridColor(ROW_SEPARATOR);
+        table.setIntercellSpacing(new Dimension(0, 0));
+        table.setSelectionBackground(TABLE_SELECTION);
+        table.setSelectionForeground(new Color(31, 41, 55));
+        table.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        
+        table.setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
+
+        JTableHeader header = table.getTableHeader();
+        header.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        header.setBackground(TABLE_HEADER_BG);
+        header.setForeground(new Color(31, 41, 55));
+        header.setReorderingAllowed(false);
+        header.setPreferredSize(new Dimension(header.getWidth(), 42));
+        header.setBorder(BorderFactory.createMatteBorder(0, 0, 1, 0, CARD_BORDER));
+
+        DefaultTableCellRenderer headerRenderer = new DefaultTableCellRenderer() {
+            @Override
+            public Component getTableCellRendererComponent(JTable table, Object value,
+                    boolean isSelected, boolean hasFocus, int row, int column) {
+                JLabel label = (JLabel) super.getTableCellRendererComponent(
+                        table, value, isSelected, hasFocus, row, column
+                );
+                label.setBorder(BorderFactory.createEmptyBorder(0, 18, 0, 0));
+                label.setFont(new Font("Segoe UI", Font.BOLD, 12));
+                label.setBackground(TABLE_HEADER_BG);
+                return label;
+            }
+        };
+
+        for (int i = 0; i < table.getColumnModel().getColumnCount(); i++) {
+            table.getColumnModel().getColumn(i).setHeaderRenderer(headerRenderer);
+        }
+
+        table.setDefaultRenderer(Object.class, new TableCellRenderer());
+    }
+    
+    private void setTableColumnWidths() {
+        commentsTable.getColumnModel().getColumn(0).setPreferredWidth(110);
+        commentsTable.getColumnModel().getColumn(1).setPreferredWidth(120);
+        commentsTable.getColumnModel().getColumn(2).setPreferredWidth(160);
+        commentsTable.getColumnModel().getColumn(3).setPreferredWidth(80);
+        commentsTable.getColumnModel().getColumn(4).setPreferredWidth(600);
+        
+        commentsTable.getColumnModel().getColumn(0).setMinWidth(110);
+        commentsTable.getColumnModel().getColumn(0).setMaxWidth(110);
+        commentsTable.getColumnModel().getColumn(1).setMinWidth(120);
+        commentsTable.getColumnModel().getColumn(1).setMaxWidth(120);
+        commentsTable.getColumnModel().getColumn(2).setMinWidth(160);
+        commentsTable.getColumnModel().getColumn(2).setMaxWidth(160);
+        commentsTable.getColumnModel().getColumn(3).setMinWidth(80);
+        commentsTable.getColumnModel().getColumn(3).setMaxWidth(80);
+        commentsTable.getColumnModel().getColumn(4).setMinWidth(600);
+    }
+
     @Override
     protected void setupLayout() {
         setLayout(new BorderLayout());
@@ -101,20 +165,16 @@ public class CustomerCommentHistoryPanel extends BasePanel {
         filterPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
         filterPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 60));
 
+        // Create table panel with scroll
         JPanel tablePanel = createTablePanel(commentsTable);
         tablePanel.setAlignmentX(Component.LEFT_ALIGNMENT);
-
+        
         content.add(filterPanel);
         content.add(Box.createVerticalStrut(15));
         content.add(tablePanel);
 
-        JScrollPane scrollPane = new JScrollPane(content);
-        scrollPane.setBorder(null);
-        scrollPane.getViewport().setBackground(PANEL_BG);
-        scrollPane.getVerticalScrollBar().setUnitIncrement(16);
-        scrollPane.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
-
-        pagePanel.add(scrollPane, BorderLayout.CENTER);
+        // No outer scroll pane for content - let it flow naturally
+        pagePanel.add(content, BorderLayout.CENTER);
         add(pagePanel, BorderLayout.CENTER);
     }
 
@@ -188,14 +248,27 @@ public class CustomerCommentHistoryPanel extends BasePanel {
                 new EmptyBorder(0, 0, 0, 0)
         ));
 
+        // Create scroll pane for the table
         JScrollPane scrollPane = new JScrollPane(table);
         scrollPane.setBorder(BorderFactory.createEmptyBorder());
         scrollPane.getViewport().setBackground(Color.WHITE);
-
+        
+        // Enable both scrollbars
+        scrollPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED);
+        scrollPane.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED);
+        scrollPane.getVerticalScrollBar().setUnitIncrement(16);
+        scrollPane.getHorizontalScrollBar().setUnitIncrement(16);
+        
+        // Set preferred size for the scroll pane
+        scrollPane.setPreferredSize(new Dimension(850, 450));
+        
+        // CRITICAL: Make sure the viewport honors the table's preferred size
+        table.setPreferredScrollableViewportSize(new Dimension(850, 400));
+        
         panel.add(scrollPane, BorderLayout.CENTER);
         return panel;
     }
-
+    
     private JTable createStyledTable(DefaultTableModel model) {
         JTable table = new JTable(model);
         table.setFont(new Font("Segoe UI", Font.PLAIN, 12));
@@ -206,60 +279,8 @@ public class CustomerCommentHistoryPanel extends BasePanel {
         table.setSelectionForeground(new Color(31, 41, 55));
         table.setShowGrid(false);
         table.setIntercellSpacing(new Dimension(0, 0));
+        table.setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
         return table;
-    }
-
-    private void setupTableStyle(JTable table) {
-        table.setFont(new Font("Segoe UI", Font.PLAIN, 13));
-        table.setRowHeight(45);
-        table.setAutoResizeMode(JTable.AUTO_RESIZE_ALL_COLUMNS);
-        table.setFillsViewportHeight(true);
-        table.setFocusable(false);
-        table.setRowSelectionAllowed(true);
-        table.setColumnSelectionAllowed(false);
-        table.setShowVerticalLines(false);
-        table.setShowHorizontalLines(true);
-        table.setGridColor(ROW_SEPARATOR);
-        table.setIntercellSpacing(new Dimension(0, 0));
-        table.setSelectionBackground(TABLE_SELECTION);
-        table.setSelectionForeground(new Color(31, 41, 55));
-        table.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-
-        JTableHeader header = table.getTableHeader();
-        header.setFont(new Font("Segoe UI", Font.BOLD, 12));
-        header.setBackground(TABLE_HEADER_BG);
-        header.setForeground(new Color(31, 41, 55));
-        header.setReorderingAllowed(false);
-        header.setPreferredSize(new Dimension(header.getWidth(), 42));
-        header.setBorder(BorderFactory.createMatteBorder(0, 0, 1, 0, CARD_BORDER));
-
-        DefaultTableCellRenderer headerRenderer = new DefaultTableCellRenderer() {
-            @Override
-            public Component getTableCellRendererComponent(JTable table, Object value,
-                    boolean isSelected, boolean hasFocus, int row, int column) {
-                JLabel label = (JLabel) super.getTableCellRendererComponent(
-                        table, value, isSelected, hasFocus, row, column
-                );
-                label.setBorder(BorderFactory.createEmptyBorder(0, 18, 0, 0));
-                label.setFont(new Font("Segoe UI", Font.BOLD, 12));
-                label.setBackground(TABLE_HEADER_BG);
-                return label;
-            }
-        };
-
-        for (int i = 0; i < table.getColumnModel().getColumnCount(); i++) {
-            table.getColumnModel().getColumn(i).setHeaderRenderer(headerRenderer);
-        }
-
-        table.setDefaultRenderer(Object.class, new TableCellRenderer());
-    }
-
-    private void setTableColumnWidths() {
-        commentsTable.getColumnModel().getColumn(0).setPreferredWidth(110);
-        commentsTable.getColumnModel().getColumn(1).setPreferredWidth(120);
-        commentsTable.getColumnModel().getColumn(2).setPreferredWidth(160);
-        commentsTable.getColumnModel().getColumn(3).setPreferredWidth(80);
-        commentsTable.getColumnModel().getColumn(4).setPreferredWidth(420);
     }
 
     private JButton createActionButton(String text, Color color) {
@@ -366,7 +387,7 @@ public class CustomerCommentHistoryPanel extends BasePanel {
         refreshButton.addActionListener(e -> {
             refreshCommentsTable();
             JOptionPane.showMessageDialog(this,
-                    "Data has been refreshed from files.",
+                    "Data has been refreshed.",
                     "Refresh Complete",
                     JOptionPane.INFORMATION_MESSAGE);
         });

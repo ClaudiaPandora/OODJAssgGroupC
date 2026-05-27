@@ -13,6 +13,7 @@ import models.Technician;
 import models.Customer;
 import models.CounterStaff;
 import ui.common.BasePanel;
+import utils.DateUtils;
 
 import javax.swing.*;
 import java.awt.*;
@@ -867,9 +868,13 @@ public class ReportsPanel extends BasePanel {
         statsPanel.setLayout(new BoxLayout(statsPanel, BoxLayout.Y_AXIS));
         statsPanel.setBackground(Color.WHITE);
         
-        // Only count COMPLETED appointments for charts
+        // Only count COMPLETED appointments from ALL filtered appointments (including future? No, only past for completed)
+        String today = DateUtils.getCurrentDate();
         List<Appointment> appointments = getFilteredAppointmentsByTimeRange();
-        List<Appointment> completedAppointments = getCompletedAppointments(appointments);
+        List<Appointment> pastAppointments = appointments.stream()
+            .filter(a -> a.getDate() != null && a.getDate().compareTo(today) <= 0)
+            .collect(Collectors.toList());
+        List<Appointment> completedAppointments = getCompletedAppointments(pastAppointments);
         
         long total = completedAppointments.size();
         long normal = completedAppointments.stream().filter(a -> a.getServiceType() == ServiceType.NORMAL).count();
@@ -923,8 +928,12 @@ public class ReportsPanel extends BasePanel {
         Graphics2D g2 = (Graphics2D) g;
         g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
         
+        String today = DateUtils.getCurrentDate();
         List<Appointment> appointments = getFilteredAppointmentsByTimeRange();
-        List<Appointment> completedAppointments = getCompletedAppointments(appointments);
+        List<Appointment> pastAppointments = appointments.stream()
+            .filter(a -> a.getDate() != null && a.getDate().compareTo(today) <= 0)
+            .collect(Collectors.toList());
+        List<Appointment> completedAppointments = getCompletedAppointments(pastAppointments);
         
         long normal = completedAppointments.stream().filter(a -> a.getServiceType() == ServiceType.NORMAL).count();
         long major = completedAppointments.stream().filter(a -> a.getServiceType() == ServiceType.MAJOR).count();
@@ -974,12 +983,21 @@ public class ReportsPanel extends BasePanel {
         content.setBorder(BorderFactory.createEmptyBorder(10, 15, 15, 15));
         
         List<Appointment> appointments = getFilteredAppointmentsByTimeRange();
-        long total = appointments.size();
-        long completed = appointments.stream()
+        
+        // Get today's date for comparison
+        String today = DateUtils.getCurrentDate();
+        
+        // Only count appointments that are in the past (date <= today)
+        List<Appointment> pastAppointments = appointments.stream()
+            .filter(a -> a.getDate() != null && a.getDate().compareTo(today) <= 0)
+            .collect(Collectors.toList());
+        
+        long totalEligible = pastAppointments.size();
+        long completed = pastAppointments.stream()
             .filter(a -> a.getStatus() == AppointmentStatus.COMPLETED)
             .count();
         
-        String completionRate = total > 0 ? (completed * 100 / total) + "%" : "0%";
+        String completionRate = totalEligible > 0 ? (completed * 100 / totalEligible) + "%" : "0%";
         
         JPanel completionPanel = createMetricPanel("Completion Rate", completionRate, GREEN);
         completionPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
@@ -987,9 +1005,11 @@ public class ReportsPanel extends BasePanel {
         content.add(completionPanel);
         content.add(Box.createVerticalStrut(10));
         
-        // Calculate peak service hours from COMPLETED appointments only
-        List<Appointment> completedAppointments = getCompletedAppointments(appointments);
-        String peakHours = calculatePeakHours(completedAppointments);
+        // Calculate peak service hours from COMPLETED appointments from PAST appointments only
+        List<Appointment> completedPastAppointments = pastAppointments.stream()
+            .filter(a -> a.getStatus() == AppointmentStatus.COMPLETED)
+            .collect(Collectors.toList());
+        String peakHours = calculatePeakHours(completedPastAppointments);
         JPanel peakPanel = createMetricPanel("Peak Service Hours", peakHours, GREEN);
         peakPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
         peakPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 80));
@@ -1005,8 +1025,11 @@ public class ReportsPanel extends BasePanel {
             return "No data available";
         }
         
-        // Count appointments per hour
+        // Count appointments per hour (frequency, not weighted)
         int[] hourCounts = new int[24];
+        // Also track service type for each hour
+        Map<Integer, Integer> majorCountPerHour = new HashMap<>();
+        Map<Integer, Integer> normalCountPerHour = new HashMap<>();
         
         for (Appointment a : appointments) {
             try {
@@ -1015,9 +1038,12 @@ public class ReportsPanel extends BasePanel {
                     String[] parts = timeStr.split(":");
                     int hour = Integer.parseInt(parts[0]);
                     if (hour >= 0 && hour < 24) {
-                        // Add weight based on service duration
-                        int weight = (a.getServiceType() == ServiceType.MAJOR) ? 3 : 1;
-                        hourCounts[hour] += weight;
+                        hourCounts[hour]++;
+                        if (a.getServiceType() == ServiceType.MAJOR) {
+                            majorCountPerHour.put(hour, majorCountPerHour.getOrDefault(hour, 0) + 1);
+                        } else {
+                            normalCountPerHour.put(hour, normalCountPerHour.getOrDefault(hour, 0) + 1);
+                        }
                     }
                 }
             } catch (Exception e) {
@@ -1025,40 +1051,28 @@ public class ReportsPanel extends BasePanel {
             }
         }
         
-        // Find the hour with maximum weight
-        int maxWeight = 0;
+        // Find the hour with maximum frequency
+        int maxCount = 0;
         int peakHourStart = 0;
         for (int i = 0; i < 24; i++) {
-            if (hourCounts[i] > maxWeight) {
-                maxWeight = hourCounts[i];
+            if (hourCounts[i] > maxCount) {
+                maxCount = hourCounts[i];
                 peakHourStart = i;
             }
         }
         
-        if (maxWeight == 0) {
+        if (maxCount == 0) {
             return "No time data available";
         }
         
-        // Determine if peak is from MAJOR or NORMAL services
-        boolean isMajorPeak = false;
-        for (Appointment a : appointments) {
-            try {
-                String timeStr = a.getStartTime();
-                if (timeStr != null && !timeStr.isEmpty()) {
-                    String[] parts = timeStr.split(":");
-                    int hour = Integer.parseInt(parts[0]);
-                    if (hour == peakHourStart && a.getServiceType() == ServiceType.MAJOR) {
-                        isMajorPeak = true;
-                        break;
-                    }
-                }
-            } catch (Exception e) {
-                // Skip invalid time formats
-            }
-        }
+        // Determine the dominant service type at the peak hour
+        int majorCount = majorCountPerHour.getOrDefault(peakHourStart, 0);
+        int normalCount = normalCountPerHour.getOrDefault(peakHourStart, 0);
         
-        // Calculate peak duration based on service type
-        int peakDuration = isMajorPeak ? 3 : 1;
+        // Peak duration is based on the dominant service type at that hour
+        // If major appointments are more at that hour, peak lasts 3 hours
+        // If normal appointments are more or equal, peak lasts 1 hour
+        int peakDuration = (majorCount > normalCount) ? 3 : 1;
         int peakHourEnd = peakHourStart + peakDuration - 1;
         
         // Ensure we don't go beyond 23 (11 PM)
@@ -1071,7 +1085,7 @@ public class ReportsPanel extends BasePanel {
         
         return startTime + " - " + endTime;
     }
-
+    
     private String formatHour(int hour) {
         if (hour == 0) return "12:00 AM";
         if (hour < 12) return hour + ":00 AM";
@@ -1117,8 +1131,13 @@ public class ReportsPanel extends BasePanel {
         Map<String, Payment> paymentMap = payments.stream()
             .collect(Collectors.toMap(Payment::getAppointmentId, p -> p, (p1, p2) -> p1));
         
-        // Revenue from COMPLETED paid appointments only
-        double totalRevenue = appointments.stream()
+        // Revenue from COMPLETED paid appointments only (from past appointments)
+        String today = DateUtils.getCurrentDate();
+        List<Appointment> pastAppointments = appointments.stream()
+            .filter(a -> a.getDate() != null && a.getDate().compareTo(today) <= 0)
+            .collect(Collectors.toList());
+        
+        double totalRevenue = pastAppointments.stream()
             .filter(a -> a.getStatus() == AppointmentStatus.COMPLETED && paymentMap.containsKey(a.getId()))
             .mapToDouble(a -> paymentMap.get(a.getId()).getAmount())
             .sum();
@@ -1157,11 +1176,11 @@ public class ReportsPanel extends BasePanel {
         rightPanel.setBackground(new Color(245, 248, 250));
         rightPanel.setBorder(BorderFactory.createEmptyBorder(15, 15, 15, 15));
         
-        double normalRevenue = appointments.stream()
+        double normalRevenue = pastAppointments.stream()
             .filter(a -> a.getServiceType() == ServiceType.NORMAL && a.getStatus() == AppointmentStatus.COMPLETED && paymentMap.containsKey(a.getId()))
             .mapToDouble(a -> paymentMap.get(a.getId()).getAmount())
             .sum();
-        double majorRevenue = appointments.stream()
+        double majorRevenue = pastAppointments.stream()
             .filter(a -> a.getServiceType() == ServiceType.MAJOR && a.getStatus() == AppointmentStatus.COMPLETED && paymentMap.containsKey(a.getId()))
             .mapToDouble(a -> paymentMap.get(a.getId()).getAmount())
             .sum();
@@ -1241,11 +1260,16 @@ public class ReportsPanel extends BasePanel {
         Map<String, Payment> paymentMap = payments.stream()
             .collect(Collectors.toMap(Payment::getAppointmentId, p -> p, (p1, p2) -> p1));
         
-        double normalRevenue = appointments.stream()
+        String today = DateUtils.getCurrentDate();
+        List<Appointment> pastAppointments = appointments.stream()
+            .filter(a -> a.getDate() != null && a.getDate().compareTo(today) <= 0)
+            .collect(Collectors.toList());
+        
+        double normalRevenue = pastAppointments.stream()
             .filter(a -> a.getServiceType() == ServiceType.NORMAL && a.getStatus() == AppointmentStatus.COMPLETED && paymentMap.containsKey(a.getId()))
             .mapToDouble(a -> paymentMap.get(a.getId()).getAmount())
             .sum();
-        double majorRevenue = appointments.stream()
+        double majorRevenue = pastAppointments.stream()
             .filter(a -> a.getServiceType() == ServiceType.MAJOR && a.getStatus() == AppointmentStatus.COMPLETED && paymentMap.containsKey(a.getId()))
             .mapToDouble(a -> paymentMap.get(a.getId()).getAmount())
             .sum();
@@ -1333,10 +1357,15 @@ public class ReportsPanel extends BasePanel {
         chartPanel.setPreferredSize(new Dimension(120, 120));
         content.add(chartPanel);
         
+        // Use PAST appointments only (date <= today) for customer analysis
+        String today = DateUtils.getCurrentDate();
         List<Appointment> appointments = getFilteredAppointmentsByTimeRange();
-        List<Appointment> completedAppointments = getCompletedAppointments(appointments);
+        List<Appointment> pastAppointments = appointments.stream()
+            .filter(a -> a.getDate() != null && a.getDate().compareTo(today) <= 0)
+            .collect(Collectors.toList());
         
-        // Only consider customers who have COMPLETED appointments
+        // Only consider customers who have COMPLETED appointments from past
+        List<Appointment> completedAppointments = getCompletedAppointments(pastAppointments);
         long activeCustomers = completedAppointments.stream()
             .map(Appointment::getCustomerId)
             .distinct()
@@ -1412,8 +1441,12 @@ public class ReportsPanel extends BasePanel {
         Graphics2D g2 = (Graphics2D) g;
         g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
         
+        String today = DateUtils.getCurrentDate();
         List<Appointment> appointments = getFilteredAppointmentsByTimeRange();
-        List<Appointment> completedAppointments = getCompletedAppointments(appointments);
+        List<Appointment> pastAppointments = appointments.stream()
+            .filter(a -> a.getDate() != null && a.getDate().compareTo(today) <= 0)
+            .collect(Collectors.toList());
+        List<Appointment> completedAppointments = getCompletedAppointments(pastAppointments);
         
         // Only consider customers who have COMPLETED appointments
         Map<String, Long> customerVisits = completedAppointments.stream()
@@ -1464,8 +1497,13 @@ public class ReportsPanel extends BasePanel {
         content.setBackground(Color.WHITE);
         content.setBorder(BorderFactory.createEmptyBorder(10, 15, 15, 15));
         
+        // Use PAST appointments only
+        String today = DateUtils.getCurrentDate();
         List<Appointment> appointments = getFilteredAppointmentsByTimeRange();
-        List<Appointment> completedAppointments = getCompletedAppointments(appointments);
+        List<Appointment> pastAppointments = appointments.stream()
+            .filter(a -> a.getDate() != null && a.getDate().compareTo(today) <= 0)
+            .collect(Collectors.toList());
+        List<Appointment> completedAppointments = getCompletedAppointments(pastAppointments);
         
         if (completedAppointments.isEmpty()) {
             JLabel emptyLabel = new JLabel("No appointment data available for selected period");
@@ -1477,7 +1515,7 @@ public class ReportsPanel extends BasePanel {
             return card;
         }
         
-        // Count visits per customer based on COMPLETED appointments only
+        // Count visits per customer based on COMPLETED appointments only from past
         Map<String, Long> customerVisitCount = completedAppointments.stream()
             .collect(Collectors.groupingBy(Appointment::getCustomerId, Collectors.counting()));
         
@@ -1574,38 +1612,50 @@ public class ReportsPanel extends BasePanel {
         content.setBorder(BorderFactory.createEmptyBorder(10, 15, 15, 15));
         
         List<Technician> techs = userDAO.readTechnicians();
+        
+        // Use PAST appointments only
+        String today = DateUtils.getCurrentDate();
         List<Appointment> appointments = getFilteredAppointmentsByTimeRange();
-        List<Appointment> completedAppointments = getCompletedAppointments(appointments);
+        List<Appointment> pastAppointments = appointments.stream()
+            .filter(a -> a.getDate() != null && a.getDate().compareTo(today) <= 0)
+            .collect(Collectors.toList());
+        List<Appointment> completedAppointments = getCompletedAppointments(pastAppointments);
         
-        techs.sort((t1, t2) -> {
-            long v1 = completedAppointments.stream().filter(a -> t1.getId().equals(a.getTechnicianId())).count();
-            long v2 = completedAppointments.stream().filter(a -> t2.getId().equals(a.getTechnicianId())).count();
-            return Long.compare(v2, v1);
-        });
-        
-        int count = 0;
+        // Count COMPLETED jobs per technician
+        Map<String, Long> technicianCompletedJobs = new HashMap<>();
         for (Technician t : techs) {
             long completed = completedAppointments.stream()
                 .filter(a -> t.getId().equals(a.getTechnicianId()))
                 .count();
-            if (completed > 0 && count < 5) {
-                JPanel row = new JPanel(new BorderLayout());
-                row.setBackground(Color.WHITE);
-                row.setBorder(BorderFactory.createMatteBorder(0, 0, 1, 0, new Color(220, 220, 220)));
-                row.setPreferredSize(new Dimension(0, 45));
-                
-                JLabel nameLabel = new JLabel((count + 1) + ". " + t.getFullName());
-                nameLabel.setFont(new Font("Segoe UI", Font.PLAIN, 13));
-                row.add(nameLabel, BorderLayout.WEST);
-                
-                JLabel jobsLabel = new JLabel(completed + " jobs");
-                jobsLabel.setFont(new Font("Segoe UI", Font.BOLD, 12));
-                jobsLabel.setForeground(NAVY_BLUE);
-                row.add(jobsLabel, BorderLayout.EAST);
-                
-                content.add(row);
-                count++;
+            if (completed > 0) {
+                technicianCompletedJobs.put(t.getFullName(), completed);
             }
+        }
+        
+        // Sort by completed jobs count descending
+        List<Map.Entry<String, Long>> sortedTechs = new ArrayList<>(technicianCompletedJobs.entrySet());
+        sortedTechs.sort((e1, e2) -> Long.compare(e2.getValue(), e1.getValue()));
+        
+        int count = 0;
+        for (Map.Entry<String, Long> entry : sortedTechs) {
+            if (count >= 5) break;
+            
+            JPanel row = new JPanel(new BorderLayout());
+            row.setBackground(Color.WHITE);
+            row.setBorder(BorderFactory.createMatteBorder(0, 0, 1, 0, new Color(220, 220, 220)));
+            row.setPreferredSize(new Dimension(0, 45));
+            
+            JLabel nameLabel = new JLabel((count + 1) + ". " + entry.getKey());
+            nameLabel.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+            row.add(nameLabel, BorderLayout.WEST);
+            
+            JLabel jobsLabel = new JLabel(entry.getValue() + " jobs");
+            jobsLabel.setFont(new Font("Segoe UI", Font.BOLD, 12));
+            jobsLabel.setForeground(NAVY_BLUE);
+            row.add(jobsLabel, BorderLayout.EAST);
+            
+            content.add(row);
+            count++;
         }
         
         if (count == 0) {
@@ -1639,9 +1689,13 @@ public class ReportsPanel extends BasePanel {
         listPanel.setBackground(Color.WHITE);
         listPanel.setAlignmentY(Component.TOP_ALIGNMENT);
         
-        List<Appointment> appointments = getFilteredAppointmentsByTimeRange();
+        String today = DateUtils.getCurrentDate();
+        List<Appointment> allAppointments = getFilteredAppointmentsByTimeRange();
+        List<Appointment> pastAppointments = allAppointments.stream()
+            .filter(a -> a.getDate() != null && a.getDate().compareTo(today) <= 0)
+            .collect(Collectors.toList());
         
-        if (appointments.isEmpty()) {
+        if (pastAppointments.isEmpty()) {
             JLabel emptyLabel = new JLabel("No appointment data available");
             emptyLabel.setFont(new Font("Segoe UI", Font.ITALIC, 11));
             emptyLabel.setForeground(TEXT_MUTED);
@@ -1651,34 +1705,39 @@ public class ReportsPanel extends BasePanel {
             return card;
         }
         
-        // Count appointments per counter staff based on filtered appointments (ALL, including cancelled)
-        Map<String, Long> staffCount = appointments.stream()
-            .filter(a -> a.getCounterStaffId() != null && !a.getCounterStaffId().isEmpty())
-            .collect(Collectors.groupingBy(Appointment::getCounterStaffId, Collectors.counting()));
+        // Count ALL appointments per counter staff (including ASSIGNED and COMPLETED)
+        Map<String, Long> staffAppointmentCount = new HashMap<>();
+        for (CounterStaff cs : userDAO.readCounterStaff()) {
+            long handledAppointments = pastAppointments.stream()
+                .filter(a -> cs.getId().equals(a.getCounterStaffId()))
+                .count();
+            if (handledAppointments > 0) {
+                staffAppointmentCount.put(cs.getFullName(), handledAppointments);
+            }
+        }
         
-        List<CounterStaff> allStaff = userDAO.readCounterStaff();
+        // Sort by count descending
+        List<Map.Entry<String, Long>> sortedStaff = new ArrayList<>(staffAppointmentCount.entrySet());
+        sortedStaff.sort((e1, e2) -> Long.compare(e2.getValue(), e1.getValue()));
         
         boolean hasData = false;
-        for (CounterStaff cs : allStaff) {
-            long count = staffCount.getOrDefault(cs.getId(), 0L);
-            if (count > 0) {
-                JPanel row = new JPanel(new BorderLayout());
-                row.setBackground(Color.WHITE);
-                row.setBorder(BorderFactory.createMatteBorder(0, 0, 1, 0, new Color(220, 220, 220)));
-                row.setPreferredSize(new Dimension(0, 45));
-                
-                JLabel nameLabel = new JLabel(cs.getFullName());
-                nameLabel.setFont(new Font("Segoe UI", Font.PLAIN, 13));
-                row.add(nameLabel, BorderLayout.WEST);
-                
-                JLabel countLabel = new JLabel(count + " appointments");
-                countLabel.setFont(new Font("Segoe UI", Font.BOLD, 12));
-                countLabel.setForeground(NAVY_BLUE);
-                row.add(countLabel, BorderLayout.EAST);
-                
-                listPanel.add(row);
-                hasData = true;
-            }
+        for (Map.Entry<String, Long> entry : sortedStaff) {
+            JPanel row = new JPanel(new BorderLayout());
+            row.setBackground(Color.WHITE);
+            row.setBorder(BorderFactory.createMatteBorder(0, 0, 1, 0, new Color(220, 220, 220)));
+            row.setPreferredSize(new Dimension(0, 45));
+            
+            JLabel nameLabel = new JLabel(entry.getKey());
+            nameLabel.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+            row.add(nameLabel, BorderLayout.WEST);
+            
+            JLabel countLabel = new JLabel(entry.getValue() + " appointments");
+            countLabel.setFont(new Font("Segoe UI", Font.BOLD, 12));
+            countLabel.setForeground(NAVY_BLUE);
+            row.add(countLabel, BorderLayout.EAST);
+            
+            listPanel.add(row);
+            hasData = true;
         }
         content.add(listPanel, BorderLayout.NORTH);
         
@@ -1949,24 +2008,6 @@ public class ReportsPanel extends BasePanel {
         return header;
     }
     
-    private JPanel createLegendItem(String text, String value, Color color) {
-        JPanel row = new JPanel(new FlowLayout(FlowLayout.LEFT, 5, 0));
-        row.setBackground(Color.WHITE);
-        row.setMaximumSize(new Dimension(Integer.MAX_VALUE, 28));
-
-        JPanel colorBox = new JPanel();
-        colorBox.setBackground(color);
-        colorBox.setPreferredSize(new Dimension(10, 10));
-        row.add(colorBox);
-
-        JLabel label = new JLabel(text + ": " + value);
-        label.setFont(new Font("Segoe UI", Font.PLAIN, 11));
-
-        row.add(label);
-
-        return row;
-    }
-    
     private JPanel createMetricPanel(String label, String value, Color color) {
         JPanel panel = new JPanel();
         panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
@@ -2026,19 +2067,28 @@ public class ReportsPanel extends BasePanel {
         Map<String, Payment> paymentMap = payments.stream()
             .collect(Collectors.toMap(Payment::getAppointmentId, p -> p, (p1, p2) -> p1));
         
-        // COMPLETED appointments only (for service analysis - matches charts)
-        List<Appointment> completedAppointments = getCompletedAppointments(allFilteredAppointments);
+        // Get today's date for comparison
+        String today = DateUtils.getCurrentDate();
         
-        // Get ALL comments for the filtered time range (NOT just completed appointments)
-        // Use all appointments to get comments, as comments can exist for any appointment
-        Set<String> allFilteredAppointmentIds = allFilteredAppointments.stream()
+        // ONLY consider past appointments (date <= today) for ALL calculations
+        List<Appointment> pastAppointments = allFilteredAppointments.stream()
+            .filter(a -> a.getDate() != null && a.getDate().compareTo(today) <= 0)
+            .collect(Collectors.toList());
+        
+        // COMPLETED appointments from past appointments only
+        List<Appointment> completedAppointments = pastAppointments.stream()
+            .filter(a -> a.getStatus() == AppointmentStatus.COMPLETED)
+            .collect(Collectors.toList());
+        
+        // Get ALL comments for the filtered time range (use past appointment IDs for ratings)
+        Set<String> pastAppointmentIds = pastAppointments.stream()
             .map(Appointment::getId)
             .collect(Collectors.toSet());
         
-        // Get comments for the filtered time range
+        // Get comments for past appointments only
         List<Comment> allComments = commentDAO.readAll();
         List<Comment> filteredComments = allComments.stream()
-            .filter(c -> allFilteredAppointmentIds.contains(c.getAppointmentId()))
+            .filter(c -> pastAppointmentIds.contains(c.getAppointmentId()))
             .collect(Collectors.toList());
         
         // Get rated comments from filtered results only (these have ratings)
@@ -2052,18 +2102,18 @@ public class ReportsPanel extends BasePanel {
         long completedCount = completedAppointments.size();
         long normal = completedAppointments.stream().filter(a -> a.getServiceType() == ServiceType.NORMAL).count();
         long major = completedAppointments.stream().filter(a -> a.getServiceType() == ServiceType.MAJOR).count();
-        long cancelledCount = allFilteredAppointments.stream().filter(a -> a.getStatus() == AppointmentStatus.CANCELLED).count();
-        long pendingAssignedCount = allFilteredAppointments.stream()
+        long cancelledCount = pastAppointments.stream().filter(a -> a.getStatus() == AppointmentStatus.CANCELLED).count();
+        long pendingAssignedCount = pastAppointments.stream()
             .filter(a -> a.getStatus() == AppointmentStatus.PENDING || a.getStatus() == AppointmentStatus.ASSIGNED)
             .count();
         
-        // Revenue from completed appointments only
+        // Revenue from completed appointments only (from past appointments)
         double revenue = completedAppointments.stream()
             .filter(a -> paymentMap.containsKey(a.getId()))
             .mapToDouble(a -> paymentMap.get(a.getId()).getAmount())
             .sum();
         
-        // Find top technician(s) - based on COMPLETED jobs only
+        // Find top technician(s) - based on COMPLETED jobs from past appointments only
         long maxTechnicianJobs = 0;
         List<String> topTechnicians = new ArrayList<>();
         Map<String, Long> technicianJobCount = new HashMap<>();
@@ -2084,7 +2134,7 @@ public class ReportsPanel extends BasePanel {
             }
         }
         
-        // Find top customer(s) - based on COMPLETED appointments only
+        // Find top customer(s) - based on COMPLETED appointments from past appointments only
         Map<String, Long> customerVisits = completedAppointments.stream()
             .collect(Collectors.groupingBy(Appointment::getCustomerId, Collectors.counting()));
         
@@ -2107,12 +2157,12 @@ public class ReportsPanel extends BasePanel {
             }
         }
         
-        // Find top counter staff(s) - based on ALL appointments (including cancelled)
+        // Find top counter staff(s) - based on past appointments only (ALL appointments, not just completed)
         long maxStaffAppointments = 0;
         List<String> topCounterStaff = new ArrayList<>();
         Map<String, Long> staffAppointmentCount = new HashMap<>();
         for (CounterStaff cs : counterStaff) {
-            long handledAppointments = allFilteredAppointments.stream()
+            long handledAppointments = pastAppointments.stream()
                 .filter(a -> cs.getId().equals(a.getCounterStaffId()))
                 .count();
             if (handledAppointments > 0) {
@@ -2128,18 +2178,18 @@ public class ReportsPanel extends BasePanel {
             }
         }
         
-        // Customer analysis based ONLY on completed appointments
+        // Customer analysis based ONLY on completed appointments (from past)
         long activeCustomers = customerVisits.size();
         long returning = customerVisits.entrySet().stream()
             .filter(entry -> entry.getValue() > 1)
             .count();
         
-        // Rating analysis based on ALL comments in the filtered period (including counter staff comments)
+        // Rating analysis based on comments from past appointments only
         double avgRating = filteredRatedComments.isEmpty() ? 0 : 
             filteredRatedComments.stream().mapToInt(Comment::getRating).average().orElse(0);
         int ratingCount = filteredRatedComments.size();
         
-        // Calculate peak hours from completed appointments only
+        // Calculate peak hours from completed appointments only (from past)
         String peakHours = calculatePeakHours(completedAppointments);
         
         if (category.equals("ALL") || category.equals("SERVICE")) {

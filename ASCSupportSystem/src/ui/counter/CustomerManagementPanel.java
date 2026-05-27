@@ -7,9 +7,13 @@ import utils.ValidationUtils;
 import exceptions.ValidationException;
 
 import javax.swing.*;
-import javax.swing.table.DefaultTableModel;
+import javax.swing.border.EmptyBorder;
+import javax.swing.event.DocumentEvent;
+import javax.swing.event.DocumentListener;
 import javax.swing.table.DefaultTableCellRenderer;
+import javax.swing.table.DefaultTableModel;
 import javax.swing.table.JTableHeader;
+import javax.swing.table.TableRowSorter;
 import java.awt.*;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
@@ -20,6 +24,11 @@ public class CustomerManagementPanel extends BasePanel {
     private UserDAO userDAO;
     private JTable customerTable;
     private DefaultTableModel tableModel;
+    private TableRowSorter<DefaultTableModel> rowSorter;
+    private JTextField searchField;
+    private JLabel statsLabel;
+    private JLabel emptyLabel;
+    private JPanel tableSwitcher;
     private JButton addButton;
     private JButton editButton;
     private JButton deleteButton;
@@ -59,9 +68,37 @@ public class CustomerManagementPanel extends BasePanel {
                 return false;
             }
         };
+        
         customerTable = new JTable(tableModel);
+        rowSorter = new TableRowSorter<>(tableModel);
+        rowSorter.setSortsOnUpdates(false);
+        for (int i = 0; i < columns.length; i++) {
+            rowSorter.setSortable(i, false);
+        }
+        customerTable.setRowSorter(rowSorter);
+        
         setupTableStyle();
         
+        // Search field
+        searchField = new JTextField();
+        searchField.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        searchField.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(CARD_BORDER),
+                new EmptyBorder(9, 12, 9, 12)
+        ));
+        
+        // Stats label
+        statsLabel = new JLabel();
+        statsLabel.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        statsLabel.setForeground(new Color(107, 114, 128));
+        
+        // Empty label
+        emptyLabel = new JLabel("No customers match the current search.");
+        emptyLabel.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        emptyLabel.setForeground(new Color(107, 114, 128));
+        emptyLabel.setHorizontalAlignment(SwingConstants.CENTER);
+        
+        // Buttons
         addButton = createStyledButton("+ New Customer", NAVY_BLUE);
         editButton = createStyledButton("Edit Customer", BLUE);
         deleteButton = createStyledButton("Delete Customer", RED);
@@ -118,154 +155,117 @@ public class CustomerManagementPanel extends BasePanel {
     
     @Override
     protected void setupLayout() {
-        JPanel mainPanel = new JPanel();
-        mainPanel.setLayout(new BoxLayout(mainPanel, BoxLayout.Y_AXIS));
+        JPanel mainPanel = new JPanel(new BorderLayout(0, 15));
         mainPanel.setBackground(PANEL_BG);
         
-        JPanel headerPanel = createHeaderPanel();
-        mainPanel.add(headerPanel);
-        mainPanel.add(Box.createVerticalStrut(15));
+        mainPanel.add(createHeaderPanel(), BorderLayout.NORTH);
+        mainPanel.add(createTableCard(), BorderLayout.CENTER);
+        mainPanel.add(createFooterPanel(), BorderLayout.SOUTH);
         
-        JPanel tablePanel = createTablePanel();
-        mainPanel.add(tablePanel);
-        
-        JScrollPane scrollPane = new JScrollPane(mainPanel);
-        scrollPane.setBorder(null);
-        scrollPane.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
-        scrollPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED);
-        scrollPane.getVerticalScrollBar().setUnitIncrement(16);
-        add(scrollPane, BorderLayout.CENTER);
+        add(mainPanel, BorderLayout.CENTER);
     }
     
     private JPanel createHeaderPanel() {
-        JPanel panel = new JPanel(new BorderLayout());
-        panel.setBackground(PANEL_BG);
-        panel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 45));
-        panel.setPreferredSize(new Dimension(0, 45));
-        
+        JPanel wrapper = new JPanel(new BorderLayout(0, 10));
+        wrapper.setBackground(PANEL_BG);
+        wrapper.setBorder(BorderFactory.createEmptyBorder(5, 0, 5, 0));
+        wrapper.setMaximumSize(new Dimension(Integer.MAX_VALUE, 110));
+        wrapper.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        JPanel titleRow = new JPanel(new BorderLayout());
+        titleRow.setBackground(PANEL_BG);
+
+        JPanel titleBlock = new JPanel();
+        titleBlock.setLayout(new BoxLayout(titleBlock, BoxLayout.Y_AXIS));
+        titleBlock.setBackground(PANEL_BG);
+
         JLabel titleLabel = new JLabel("Customer Management");
         titleLabel.setFont(new Font("Segoe UI", Font.BOLD, 24));
         titleLabel.setForeground(NAVY_BLUE);
-        panel.add(titleLabel, BorderLayout.WEST);
-        
-        JPanel rightPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
-        rightPanel.setBackground(PANEL_BG);
-        
-        refreshButton = new JButton("Refresh");
-        refreshButton.setFont(new Font("Segoe UI", Font.BOLD, 11));
-        refreshButton.setBackground(GREEN);
-        refreshButton.setForeground(Color.WHITE);
-        refreshButton.setFocusPainted(false);
-        refreshButton.setBorderPainted(false);
-        refreshButton.setOpaque(true);
-        refreshButton.setCursor(new Cursor(Cursor.HAND_CURSOR));
-        refreshButton.setBorder(BorderFactory.createEmptyBorder(8, 14, 8, 14));
-        refreshButton.setPreferredSize(new Dimension(90, 34));
-        refreshButton.addActionListener(e -> {
-            refreshData();
-            JOptionPane.showMessageDialog(this, "Customer list has been refreshed from file.", 
-                "Refresh Complete", JOptionPane.INFORMATION_MESSAGE);
-        });
-        
-        addButton = new JButton("+ New Customer");
-        addButton.setFont(new Font("Segoe UI", Font.BOLD, 11));
-        addButton.setBackground(NAVY_BLUE);
-        addButton.setForeground(Color.WHITE);
-        addButton.setFocusPainted(false);
-        addButton.setBorderPainted(false);
-        addButton.setOpaque(true);
-        addButton.setCursor(new Cursor(Cursor.HAND_CURSOR));
-        addButton.setBorder(BorderFactory.createEmptyBorder(8, 14, 8, 14));
-        addButton.setPreferredSize(new Dimension(130, 34));
-        addButton.addActionListener(e -> showCustomerDialog(null));
-        
-        // Hover effects
-        refreshButton.addMouseListener(new MouseAdapter() {
-            @Override
-            public void mouseEntered(MouseEvent e) { refreshButton.setBackground(GREEN.darker()); }
-            @Override
-            public void mouseExited(MouseEvent e) { refreshButton.setBackground(GREEN); }
-        });
-        
-        addButton.addMouseListener(new MouseAdapter() {
-            @Override
-            public void mouseEntered(MouseEvent e) { addButton.setBackground(NAVY_BLUE.darker()); }
-            @Override
-            public void mouseExited(MouseEvent e) { addButton.setBackground(NAVY_BLUE); }
-        });
-        
-        rightPanel.add(addButton);
-        rightPanel.add(refreshButton);
-        
-        panel.add(rightPanel, BorderLayout.EAST);
-        
-        return panel;
-    }
+        titleLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        titleBlock.add(titleLabel);
 
-    private JPanel createTablePanel() {
-        JPanel panel = new JPanel(new BorderLayout());
-        panel.setBackground(Color.WHITE);
-        panel.setBorder(BorderFactory.createCompoundBorder(
-            BorderFactory.createLineBorder(CARD_BORDER, 1),
-            BorderFactory.createEmptyBorder(0, 0, 0, 0)
+        titleRow.add(titleBlock, BorderLayout.WEST);
+
+        JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 6));
+        actions.setBackground(PANEL_BG);
+        actions.add(addButton);
+        actions.add(refreshButton);
+        titleRow.add(actions, BorderLayout.EAST);
+
+        wrapper.add(titleRow, BorderLayout.NORTH);
+        wrapper.add(createToolbar(), BorderLayout.CENTER);
+
+        return wrapper;
+    }
+    
+    private JPanel createToolbar() {
+        JPanel toolbar = new JPanel(new BorderLayout());
+        toolbar.setBackground(Color.WHITE);
+        toolbar.setMaximumSize(new Dimension(Integer.MAX_VALUE, 58));
+        toolbar.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(CARD_BORDER),
+                new EmptyBorder(12, 14, 12, 14)
         ));
-        
+
+        JPanel controlsPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 12, 0));
+        controlsPanel.setBackground(Color.WHITE);
+
+        JPanel searchPanel = new JPanel(new BorderLayout(8, 0));
+        searchPanel.setBackground(Color.WHITE);
+        searchPanel.setPreferredSize(new Dimension(430, 34));
+
+        JLabel searchLabel = new JLabel("Search");
+        searchLabel.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        searchLabel.setForeground(new Color(31, 41, 55));
+        searchPanel.add(searchLabel, BorderLayout.WEST);
+        searchPanel.add(searchField, BorderLayout.CENTER);
+
+        controlsPanel.add(searchPanel);
+        toolbar.add(controlsPanel, BorderLayout.WEST);
+
+        return toolbar;
+    }
+    
+    private JPanel createTableCard() {
+        JPanel tableCard = new JPanel(new BorderLayout());
+        tableCard.setBackground(Color.WHITE);
+        tableCard.setBorder(BorderFactory.createLineBorder(CARD_BORDER));
+
         JScrollPane scrollPane = new JScrollPane(customerTable);
-        scrollPane.setBorder(null);
+        scrollPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED);
+        scrollPane.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
+        scrollPane.setBorder(BorderFactory.createEmptyBorder());
         scrollPane.getViewport().setBackground(Color.WHITE);
-        panel.add(scrollPane, BorderLayout.CENTER);
+
+        JPanel emptyPanel = new JPanel(new GridBagLayout());
+        emptyPanel.setBackground(Color.WHITE);
+        emptyPanel.add(emptyLabel);
+
+        tableSwitcher = new JPanel(new CardLayout());
+        tableSwitcher.add(scrollPane, "TABLE");
+        tableSwitcher.add(emptyPanel, "EMPTY");
+
+        tableCard.add(tableSwitcher, BorderLayout.CENTER);
+        return tableCard;
+    }
+    
+    private JPanel createFooterPanel() {
+        JPanel footer = new JPanel(new BorderLayout());
+        footer.setBackground(PANEL_BG);
+        footer.setBorder(BorderFactory.createEmptyBorder(10, 0, 0, 0));
         
-        JPanel actionPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 8));
-        actionPanel.setBackground(LIGHT_BG);
-        actionPanel.setBorder(BorderFactory.createMatteBorder(1, 0, 0, 0, CARD_BORDER));
+        // Left side - stats label
+        footer.add(statsLabel, BorderLayout.WEST);
         
-        // Create Edit button with proper sizing
-        editButton = new JButton("Edit Customer");
-        editButton.setFont(new Font("Segoe UI", Font.BOLD, 11));
-        editButton.setBackground(BLUE);
-        editButton.setForeground(Color.WHITE);
-        editButton.setFocusPainted(false);
-        editButton.setBorderPainted(false);
-        editButton.setOpaque(true);
-        editButton.setCursor(new Cursor(Cursor.HAND_CURSOR));
-        editButton.setBorder(BorderFactory.createEmptyBorder(8, 14, 8, 14));
-        editButton.setPreferredSize(new Dimension(120, 34));
-        editButton.addActionListener(e -> editSelectedCustomer());
+        // Right side - action buttons
+        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
+        buttonPanel.setBackground(PANEL_BG);
+        buttonPanel.add(editButton);
+        buttonPanel.add(deleteButton);
+        footer.add(buttonPanel, BorderLayout.EAST);
         
-        // Create Delete button with proper sizing
-        deleteButton = new JButton("Delete Customer");
-        deleteButton.setFont(new Font("Segoe UI", Font.BOLD, 11));
-        deleteButton.setBackground(RED);
-        deleteButton.setForeground(Color.WHITE);
-        deleteButton.setFocusPainted(false);
-        deleteButton.setBorderPainted(false);
-        deleteButton.setOpaque(true);
-        deleteButton.setCursor(new Cursor(Cursor.HAND_CURSOR));
-        deleteButton.setBorder(BorderFactory.createEmptyBorder(8, 14, 8, 14));
-        deleteButton.setPreferredSize(new Dimension(130, 34));
-        deleteButton.addActionListener(e -> deleteSelectedCustomer());
-        
-        // Hover effects for Edit button
-        editButton.addMouseListener(new MouseAdapter() {
-            @Override
-            public void mouseEntered(MouseEvent e) { editButton.setBackground(BLUE.darker()); }
-            @Override
-            public void mouseExited(MouseEvent e) { editButton.setBackground(BLUE); }
-        });
-        
-        // Hover effects for Delete button
-        deleteButton.addMouseListener(new MouseAdapter() {
-            @Override
-            public void mouseEntered(MouseEvent e) { deleteButton.setBackground(RED.darker()); }
-            @Override
-            public void mouseExited(MouseEvent e) { deleteButton.setBackground(RED); }
-        });
-        
-        actionPanel.add(editButton);
-        actionPanel.add(deleteButton);
-        panel.add(actionPanel, BorderLayout.SOUTH);
-        
-        return panel;
+        return footer;
     }
     
     private void showCustomerDialog(Customer existingCustomer) {
@@ -292,6 +292,48 @@ public class CustomerManagementPanel extends BasePanel {
             };
             tableModel.addRow(row);
         }
+        
+        applySearchFilter();
+        updateStatsLabel();
+        updateTableVisibility();
+        customerTable.revalidate();
+        customerTable.repaint();
+    }
+    
+    private void applySearchFilter() {
+        String search = searchField.getText() == null ? "" : searchField.getText().trim().toLowerCase();
+        
+        rowSorter.setRowFilter(new RowFilter<DefaultTableModel, Integer>() {
+            @Override
+            public boolean include(Entry<? extends DefaultTableModel, ? extends Integer> entry) {
+                boolean searchMatches = search.isEmpty();
+                for (int i = 0; i < 5 && !searchMatches; i++) {
+                    Object value = entry.getValue(i);
+                    searchMatches = value != null && value.toString().toLowerCase().contains(search);
+                }
+                return searchMatches;
+            }
+        });
+    }
+    
+    private void updateTableVisibility() {
+        if (tableSwitcher == null) {
+            return;
+        }
+        
+        CardLayout layout = (CardLayout) tableSwitcher.getLayout();
+        layout.show(tableSwitcher, customerTable.getRowCount() == 0 ? "EMPTY" : "TABLE");
+    }
+    
+    private void updateStatsLabel() {
+        List<Customer> customers = userDAO.readCustomers();
+        int totalCustomers = customers.size();
+        int displayedCustomers = customerTable.getRowCount();
+        
+        statsLabel.setText(String.format(
+            "Total Customers: %d    Displaying: %d",
+            totalCustomers, displayedCustomers
+        ));
     }
     
     private Customer getSelectedCustomer() {
@@ -357,7 +399,7 @@ public class CustomerManagementPanel extends BasePanel {
         button.setOpaque(true);
         button.setCursor(new Cursor(Cursor.HAND_CURSOR));
         button.setBorder(BorderFactory.createEmptyBorder(8, 14, 8, 14));
-        button.setPreferredSize(new Dimension(110, 34));
+        button.setPreferredSize(new Dimension(120, 36));
         
         button.addMouseListener(new MouseAdapter() {
             @Override
@@ -383,6 +425,43 @@ public class CustomerManagementPanel extends BasePanel {
                 }
             }
         });
+        
+        // Search field document listener for real-time filtering
+        searchField.getDocument().addDocumentListener(new DocumentListener() {
+            @Override
+            public void insertUpdate(DocumentEvent e) {
+                filtersChanged();
+            }
+            @Override
+            public void removeUpdate(DocumentEvent e) {
+                filtersChanged();
+            }
+            @Override
+            public void changedUpdate(DocumentEvent e) {
+                filtersChanged();
+            }
+            private void filtersChanged() {
+                applySearchFilter();
+                updateStatsLabel();
+                updateTableVisibility();
+            }
+        });
+        
+        // Refresh button
+        refreshButton.addActionListener(e -> {
+            refreshData();
+            JOptionPane.showMessageDialog(this, "Customer list has been refreshed.", 
+                "Refresh Complete", JOptionPane.INFORMATION_MESSAGE);
+        });
+        
+        // Add button
+        addButton.addActionListener(e -> showCustomerDialog(null));
+        
+        // Edit button
+        editButton.addActionListener(e -> editSelectedCustomer());
+        
+        // Delete button
+        deleteButton.addActionListener(e -> deleteSelectedCustomer());
     }
     
     class TableCellRenderer extends DefaultTableCellRenderer {
@@ -410,6 +489,7 @@ public class CustomerManagementPanel extends BasePanel {
         }
     }
 }
+
 
 //Separate dialog class for customer form
 class CustomerDialog extends JDialog {

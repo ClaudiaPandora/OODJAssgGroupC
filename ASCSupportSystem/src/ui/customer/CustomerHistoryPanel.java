@@ -222,7 +222,7 @@ public class CustomerHistoryPanel extends BasePanel {
 
         JPanel filterPanel = createFilterPanel();
         filterPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
-        filterPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 60));
+        filterPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 80));
 
         JTabbedPane tabbedPane = new JTabbedPane();
         tabbedPane.setFont(new Font("Segoe UI", Font.BOLD, 12));
@@ -280,49 +280,62 @@ public class CustomerHistoryPanel extends BasePanel {
     }
 
     private JPanel createFilterPanel() {
-        JPanel panel = new JPanel(new FlowLayout(FlowLayout.LEFT, 12, 12));
+        JPanel panel = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 8));
         panel.setBackground(Color.WHITE);
         panel.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createLineBorder(CARD_BORDER, 1),
-                new EmptyBorder(8, 16, 8, 16)
+                new EmptyBorder(10, 12, 10, 12)
         ));
 
-        JLabel searchLabel = new JLabel("Search");
-        searchLabel.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        // Search field with label
+        JLabel searchLabel = new JLabel("Search:");
+        searchLabel.setFont(new Font("Segoe UI", Font.BOLD, 11));
         searchLabel.setForeground(new Color(31, 41, 55));
-
-        searchField.setPreferredSize(new Dimension(250, 34));
-        searchField.setMinimumSize(new Dimension(200, 34));
-
-        JLabel statusLabel = new JLabel("Status");
-        statusLabel.setFont(new Font("Segoe UI", Font.BOLD, 12));
-        statusLabel.setForeground(new Color(31, 41, 55));
-
-        JLabel serviceLabel = new JLabel("Service");
-        serviceLabel.setFont(new Font("Segoe UI", Font.BOLD, 12));
-        serviceLabel.setForeground(new Color(31, 41, 55));
-
-        JLabel monthLabel = new JLabel("Month");
-        monthLabel.setFont(new Font("Segoe UI", Font.BOLD, 12));
-        monthLabel.setForeground(new Color(31, 41, 55));
-
-        JLabel paymentMethodLabel = new JLabel("Payment Method");
-        paymentMethodLabel.setFont(new Font("Segoe UI", Font.BOLD, 12));
-        paymentMethodLabel.setForeground(new Color(31, 41, 55));
-
         panel.add(searchLabel);
+        
+        searchField.setPreferredSize(new Dimension(150, 30));
         panel.add(searchField);
+        
+        // Status filter
+        JLabel statusLabel = new JLabel("Status:");
+        statusLabel.setFont(new Font("Segoe UI", Font.BOLD, 11));
+        statusLabel.setForeground(new Color(31, 41, 55));
         panel.add(statusLabel);
+        
+        statusFilter.setPreferredSize(new Dimension(100, 30));
         panel.add(statusFilter);
+        
+        // Service filter
+        JLabel serviceLabel = new JLabel("Service:");
+        serviceLabel.setFont(new Font("Segoe UI", Font.BOLD, 11));
+        serviceLabel.setForeground(new Color(31, 41, 55));
         panel.add(serviceLabel);
+        
+        serviceFilter.setPreferredSize(new Dimension(90, 30));
         panel.add(serviceFilter);
+        
+        // Month filter
+        JLabel monthLabel = new JLabel("Month:");
+        monthLabel.setFont(new Font("Segoe UI", Font.BOLD, 11));
+        monthLabel.setForeground(new Color(31, 41, 55));
         panel.add(monthLabel);
+        
+        monthFilter.setPreferredSize(new Dimension(100, 30));
         panel.add(monthFilter);
+        
+        // Payment Method filter
+        JLabel paymentMethodLabel = new JLabel("Payment:");
+        paymentMethodLabel.setFont(new Font("Segoe UI", Font.BOLD, 11));
+        paymentMethodLabel.setForeground(new Color(31, 41, 55));
         panel.add(paymentMethodLabel);
+        
+        paymentMethodFilter.setPreferredSize(new Dimension(110, 30));
         panel.add(paymentMethodFilter);
+        
+        // Buttons
         panel.add(applyButton);
         panel.add(resetButton);
-
+        
         return panel;
     }
 

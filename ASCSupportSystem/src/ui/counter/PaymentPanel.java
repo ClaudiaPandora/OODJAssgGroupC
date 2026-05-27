@@ -13,9 +13,13 @@ import ui.common.BasePanel;
 import utils.DateUtils;
 
 import javax.swing.*;
+import javax.swing.border.EmptyBorder;
+import javax.swing.event.DocumentEvent;
+import javax.swing.event.DocumentListener;
 import javax.swing.table.DefaultTableModel;
 import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.JTableHeader;
+import javax.swing.table.TableRowSorter;
 import java.awt.*;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
@@ -28,8 +32,7 @@ import java.io.FileWriter;
 import java.io.PrintWriter;
 import java.text.SimpleDateFormat;
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
-import java.util.Comparator;
+import java.util.*;
 import java.util.List;
 
 public class PaymentPanel extends BasePanel {
@@ -39,11 +42,16 @@ public class PaymentPanel extends BasePanel {
     private UserDAO userDAO;
     private JTable paymentTable;
     private DefaultTableModel tableModel;
+    private TableRowSorter<DefaultTableModel> rowSorter;
     private JButton refreshButton;
     private JButton exportButton;
     private ServiceDAO serviceDAO; 
-    private JComboBox<String> paymentStatusFilter;
-    private JComboBox<String> paymentSortCombo;
+    private JTextField searchField;
+    private JComboBox<String> statusFilterCombo;
+    private JComboBox<String> sortCombo;
+    private JLabel statsLabel;
+    private JLabel emptyLabel;
+    private JPanel tableSwitcher;
     
     private final Color CARD_BORDER = new Color(226, 232, 240);
     private final Color TABLE_HEADER_BG = new Color(244, 246, 250);
@@ -71,13 +79,16 @@ public class PaymentPanel extends BasePanel {
     }
     
     private void refreshData() {
+        // Create new DAO instances to get fresh data from files
         this.appointmentDAO = new AppointmentDAO();
         this.paymentDAO = new PaymentDAO();
         this.userDAO = new UserDAO();
         this.serviceDAO = new ServiceDAO();
         
+        // Reload the table data
         loadPaymentData();
         
+        // Force repaint
         paymentTable.revalidate();
         paymentTable.repaint();
     }
@@ -91,20 +102,53 @@ public class PaymentPanel extends BasePanel {
                 return column == 8;
             }
         };
+        
         paymentTable = new JTable(tableModel);
+        rowSorter = new TableRowSorter<>(tableModel);
+        paymentTable.setRowSorter(rowSorter);
         setupTableStyle();
         
+        // Create buttons with action listeners
         refreshButton = createStyledButton("Refresh", GREEN);
+        refreshButton.addActionListener(e -> {
+            refreshData();
+            JOptionPane.showMessageDialog(this, "Data has been refreshed.", 
+                "Refresh Complete", JOptionPane.INFORMATION_MESSAGE);
+        });
+        
         exportButton = createStyledButton("Export to Excel", BLUE);
-        paymentStatusFilter = new JComboBox<>(new String[]{"All Payments", "Paid", "Unpaid"});
-        paymentStatusFilter.setFont(new Font("Segoe UI", Font.PLAIN, 12));
-        paymentStatusFilter.setBackground(Color.WHITE);
-        paymentStatusFilter.setPreferredSize(new Dimension(125, 34));
-
-        paymentSortCombo = new JComboBox<>(new String[]{"Recent Date", "Oldest Date"});
-        paymentSortCombo.setFont(new Font("Segoe UI", Font.PLAIN, 12));
-        paymentSortCombo.setBackground(Color.WHITE);
-        paymentSortCombo.setPreferredSize(new Dimension(125, 34));
+        exportButton.addActionListener(e -> exportToExcel());
+        
+        // Search field
+        searchField = new JTextField();
+        searchField.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        searchField.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(CARD_BORDER),
+                new EmptyBorder(9, 12, 9, 12)
+        ));
+        searchField.setToolTipText("Search by Appointment ID or Customer Name");
+        
+        // Status filter combo
+        statusFilterCombo = new JComboBox<>(new String[]{"All Status", "PAID", "UNPAID"});
+        statusFilterCombo.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        statusFilterCombo.setFocusable(false);
+        
+        // Sort options
+        sortCombo = new JComboBox<>(new String[]{"Most Recent", "Oldest"});
+        sortCombo.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        sortCombo.setBackground(Color.WHITE);
+        sortCombo.setPreferredSize(new Dimension(130, 34));
+        
+        // Stats label
+        statsLabel = new JLabel();
+        statsLabel.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        statsLabel.setForeground(new Color(107, 114, 128));
+        
+        // Empty label
+        emptyLabel = new JLabel("No payments match the current filters.");
+        emptyLabel.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        emptyLabel.setForeground(new Color(107, 114, 128));
+        emptyLabel.setHorizontalAlignment(SwingConstants.CENTER);
     }
     
     private void setupTableStyle() {
@@ -162,100 +206,181 @@ public class PaymentPanel extends BasePanel {
     
     @Override
     protected void setupLayout() {
-        JPanel mainPanel = new JPanel();
-        mainPanel.setLayout(new BoxLayout(mainPanel, BoxLayout.Y_AXIS));
+        JPanel mainPanel = new JPanel(new BorderLayout(0, 15));
         mainPanel.setBackground(PANEL_BG);
         
-        JPanel headerPanel = createHeaderPanel();
-        mainPanel.add(headerPanel);
-        mainPanel.add(Box.createVerticalStrut(15));
+        mainPanel.add(createHeaderPanel(), BorderLayout.NORTH);
+        mainPanel.add(createTableCard(), BorderLayout.CENTER);
+        mainPanel.add(createFooterPanel(), BorderLayout.SOUTH);
         
-        JPanel tablePanel = createTablePanel();
-        mainPanel.add(tablePanel);
-        
-        JScrollPane scrollPane = new JScrollPane(mainPanel);
-        scrollPane.setBorder(null);
-        scrollPane.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
-        scrollPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED);
-        scrollPane.getVerticalScrollBar().setUnitIncrement(16);
-        add(scrollPane, BorderLayout.CENTER);
+        add(mainPanel, BorderLayout.CENTER);
     }
     
     private JPanel createHeaderPanel() {
-        JPanel panel = new JPanel(new BorderLayout());
-        panel.setBackground(PANEL_BG);
-        panel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 45));
-        panel.setPreferredSize(new Dimension(0, 45));
-        
+        JPanel wrapper = new JPanel(new BorderLayout(0, 10));
+        wrapper.setBackground(PANEL_BG);
+        wrapper.setMaximumSize(new Dimension(Integer.MAX_VALUE, 95));
+        wrapper.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        JPanel titleRow = new JPanel(new BorderLayout());
+        titleRow.setBackground(PANEL_BG);
+
+        JPanel titleBlock = new JPanel();
+        titleBlock.setLayout(new BoxLayout(titleBlock, BoxLayout.Y_AXIS));
+        titleBlock.setBackground(PANEL_BG);
+
         JLabel titleLabel = new JLabel("Payment Management");
         titleLabel.setFont(new Font("Segoe UI", Font.BOLD, 24));
         titleLabel.setForeground(NAVY_BLUE);
-        panel.add(titleLabel, BorderLayout.WEST);
-        
-        JPanel rightPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
-        rightPanel.setBackground(PANEL_BG);
+        titleLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        titleBlock.add(titleLabel);
 
-        JLabel statusLabel = new JLabel("Filter:");
-        statusLabel.setFont(new Font("Segoe UI", Font.BOLD, 12));
-        statusLabel.setForeground(new Color(31, 41, 55));
-        rightPanel.add(statusLabel);
-        paymentStatusFilter.addActionListener(e -> loadPaymentData());
-        rightPanel.add(paymentStatusFilter);
+        titleRow.add(titleBlock, BorderLayout.WEST);
 
-        JLabel sortLabel = new JLabel("Sort:");
-        sortLabel.setFont(new Font("Segoe UI", Font.BOLD, 12));
-        sortLabel.setForeground(new Color(31, 41, 55));
-        rightPanel.add(sortLabel);
-        paymentSortCombo.addActionListener(e -> loadPaymentData());
-        rightPanel.add(paymentSortCombo);
-        
-        exportButton.addActionListener(e -> exportToExcel());
-        rightPanel.add(exportButton);
-        
-        refreshButton.addActionListener(e -> {
-            refreshData();
-            JOptionPane.showMessageDialog(this, "Data has been refreshed.", 
-                "Refresh Complete", JOptionPane.INFORMATION_MESSAGE);
-        });
-        rightPanel.add(refreshButton);
-        
-        panel.add(rightPanel, BorderLayout.EAST);
-        
-        return panel;
+        JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
+        actions.setBackground(PANEL_BG);
+        actions.add(exportButton);
+        actions.add(refreshButton);
+        titleRow.add(actions, BorderLayout.EAST);
+
+        wrapper.add(titleRow, BorderLayout.NORTH);
+        wrapper.add(createToolbar(), BorderLayout.CENTER);
+
+        return wrapper;
     }
     
-    private JPanel createTablePanel() {
-        JPanel panel = new JPanel(new BorderLayout());
-        panel.setBackground(Color.WHITE);
-        panel.setBorder(BorderFactory.createCompoundBorder(
-            BorderFactory.createLineBorder(CARD_BORDER, 1),
-            BorderFactory.createEmptyBorder(0, 0, 0, 0)
+    private JPanel createToolbar() {
+        JPanel toolbar = new JPanel(new BorderLayout());
+        toolbar.setBackground(Color.WHITE);
+        toolbar.setMaximumSize(new Dimension(Integer.MAX_VALUE, 58));
+        toolbar.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(CARD_BORDER),
+                new EmptyBorder(12, 14, 12, 14)
         ));
-        
+
+        JPanel controlsPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 12, 0));
+        controlsPanel.setBackground(Color.WHITE);
+
+        // Search panel
+        JPanel searchPanel = new JPanel(new BorderLayout(8, 0));
+        searchPanel.setBackground(Color.WHITE);
+        searchPanel.setPreferredSize(new Dimension(350, 34));
+
+        JLabel searchLabel = new JLabel("Search");
+        searchLabel.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        searchLabel.setForeground(new Color(31, 41, 55));
+        searchPanel.add(searchLabel, BorderLayout.WEST);
+        searchPanel.add(searchField, BorderLayout.CENTER);
+
+        // Status filter panel
+        JPanel statusPanel = new JPanel(new BorderLayout(8, 0));
+        statusPanel.setBackground(Color.WHITE);
+        statusPanel.setPreferredSize(new Dimension(200, 34));
+
+        JLabel statusLabel = new JLabel("Status");
+        statusLabel.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        statusLabel.setForeground(new Color(31, 41, 55));
+        statusPanel.add(statusLabel, BorderLayout.WEST);
+        statusPanel.add(statusFilterCombo, BorderLayout.CENTER);
+
+        // Sort panel
+        JPanel sortPanel = new JPanel(new BorderLayout(8, 0));
+        sortPanel.setBackground(Color.WHITE);
+        sortPanel.setPreferredSize(new Dimension(180, 34));
+
+        JLabel sortLabel = new JLabel("Sort by ID");
+        sortLabel.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        sortLabel.setForeground(new Color(31, 41, 55));
+        sortPanel.add(sortLabel, BorderLayout.WEST);
+        sortPanel.add(sortCombo, BorderLayout.CENTER);
+
+        // Reset button
+        JButton resetButton = new JButton("Reset");
+        resetButton.setFont(new Font("Segoe UI", Font.BOLD, 11));
+        resetButton.setBackground(new Color(156, 163, 175));
+        resetButton.setForeground(Color.WHITE);
+        resetButton.setFocusPainted(false);
+        resetButton.setBorderPainted(false);
+        resetButton.setOpaque(true);
+        resetButton.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        resetButton.setBorder(BorderFactory.createEmptyBorder(8, 16, 8, 16));
+        resetButton.setPreferredSize(new Dimension(80, 34));
+
+        resetButton.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseEntered(MouseEvent e) {
+                resetButton.setBackground(new Color(136, 143, 155));
+            }
+            @Override
+            public void mouseExited(MouseEvent e) {
+                resetButton.setBackground(new Color(156, 163, 175));
+            }
+        });
+
+        resetButton.addActionListener(e -> {
+            searchField.setText("");
+            statusFilterCombo.setSelectedIndex(0);
+            sortCombo.setSelectedIndex(0);
+            applyFilters();
+            updateStatsLabel();
+            SwingUtilities.invokeLater(this::updateTableVisibility);
+        });
+
+        controlsPanel.add(searchPanel);
+        controlsPanel.add(statusPanel);
+        controlsPanel.add(sortPanel);
+        controlsPanel.add(resetButton);
+        toolbar.add(controlsPanel, BorderLayout.WEST);
+
+        return toolbar;
+    }
+    
+    private JPanel createTableCard() {
+        JPanel tableCard = new JPanel(new BorderLayout());
+        tableCard.setBackground(Color.WHITE);
+        tableCard.setBorder(BorderFactory.createLineBorder(CARD_BORDER));
+
         JScrollPane scrollPane = new JScrollPane(paymentTable);
-        scrollPane.setBorder(null);
+        scrollPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED);
+        scrollPane.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
+        scrollPane.setBorder(BorderFactory.createEmptyBorder());
         scrollPane.getViewport().setBackground(Color.WHITE);
-        panel.add(scrollPane, BorderLayout.CENTER);
+
+        JPanel emptyPanel = new JPanel(new GridBagLayout());
+        emptyPanel.setBackground(Color.WHITE);
+        emptyPanel.add(emptyLabel);
+
+        tableSwitcher = new JPanel(new CardLayout());
+        tableSwitcher.add(scrollPane, "TABLE");
+        tableSwitcher.add(emptyPanel, "EMPTY");
+
+        tableCard.add(tableSwitcher, BorderLayout.CENTER);
+        return tableCard;
+    }
+    
+    private JPanel createFooterPanel() {
+        JPanel footer = new JPanel(new BorderLayout());
+        footer.setBackground(PANEL_BG);
+        footer.setBorder(BorderFactory.createEmptyBorder(10, 0, 0, 0));
         
-        return panel;
+        footer.add(statsLabel, BorderLayout.WEST);
+        
+        return footer;
     }
     
     private void loadPaymentData() {
-        // Clear all rows
+        // Clear the table model completely
         tableModel.setRowCount(0);
         
-        // Get fresh data from DAOs
         List<Appointment> allAppointments = appointmentDAO.readAll();
         List<Payment> payments = paymentDAO.readAll();
         
-        List<PaymentRow> rows = new ArrayList<>();
-
         for (Appointment appt : allAppointments) {
-            if (appt.getStatus() == AppointmentStatus.CANCELLED) {
+            // Only show COMPLETED or ASSIGNED appointments
+            if (appt.getStatus() != AppointmentStatus.COMPLETED && appt.getStatus() != AppointmentStatus.ASSIGNED) {
                 continue;
             }
             
-            // Check if payment exists for this appointment
             Payment existingPayment = null;
             boolean isPaid = false;
             for (Payment p : payments) {
@@ -272,19 +397,7 @@ public class PaymentPanel extends BasePanel {
             String paymentMethod = existingPayment != null ? existingPayment.getPaymentMethod().toString() : "-";
             String paymentDate = existingPayment != null ? existingPayment.getPaymentDate() : "-";
             String paymentStatus = isPaid ? "PAID" : "UNPAID";
-            String selectedStatus = paymentStatusFilter == null ? "All Payments" : (String) paymentStatusFilter.getSelectedItem();
-
-            if ("Paid".equals(selectedStatus) && !isPaid) {
-                continue;
-            }
-            if ("Unpaid".equals(selectedStatus) && isPaid) {
-                continue;
-            }
-            
-            // For paid appointments, show amount from payment record
             double displayAmount = isPaid && existingPayment != null ? existingPayment.getAmount() : appt.getAmount();
-            
-            // Determine action button text
             String actionText = isPaid ? "VIEW RECEIPT" : "COLLECT PAYMENT";
             
             Object[] row = {
@@ -298,45 +411,82 @@ public class PaymentPanel extends BasePanel {
                 paymentStatus,
                 actionText
             };
-            String sortDate = isPaid && existingPayment != null ? existingPayment.getPaymentDate() : appt.getDate();
-            rows.add(new PaymentRow(row, sortDate));
-        }
-
-        String selectedSort = paymentSortCombo == null ? "Recent Date" : (String) paymentSortCombo.getSelectedItem();
-        rows.sort(Comparator.comparing(PaymentRow::getSortDate));
-        if ("Recent Date".equals(selectedSort)) {
-            java.util.Collections.reverse(rows);
-        }
-
-        for (PaymentRow row : rows) {
-            tableModel.addRow(row.getData());
+            tableModel.addRow(row);
         }
         
-        if (tableModel.getRowCount() == 0) {
-            tableModel.addRow(new Object[]{"-", "-", "No payment records", "-", "-", "-", "-", "-", "-"});
-        }
+        // Reset and reapply filters
+        rowSorter.setRowFilter(null);
+        applyFilters();
+        updateStatsLabel();
+        SwingUtilities.invokeLater(this::updateTableVisibility);
         
-        // Force table refresh
         paymentTable.revalidate();
         paymentTable.repaint();
     }
+    
+    private void applyFilters() {
+        rowSorter.setSortKeys(null);
 
-    private static class PaymentRow {
-        private final Object[] data;
-        private final String sortDate;
-
-        PaymentRow(Object[] data, String sortDate) {
-            this.data = data;
-            this.sortDate = sortDate == null ? "" : sortDate;
+        String searchText = searchField.getText() == null ? "" : searchField.getText().trim().toLowerCase();
+        String selectedStatus = (String) statusFilterCombo.getSelectedItem();
+        String selectedSort = (String) sortCombo.getSelectedItem();
+        
+        RowFilter<DefaultTableModel, Integer> rowFilter = new RowFilter<DefaultTableModel, Integer>() {
+            @Override
+            public boolean include(Entry<? extends DefaultTableModel, ? extends Integer> entry) {
+                // Status filter
+                boolean statusMatches = "All Status".equals(selectedStatus) || 
+                    entry.getValue(7).toString().equals(selectedStatus);
+                
+                // Search filter (search by Appointment ID or Customer name)
+                boolean searchMatches = searchText.isEmpty();
+                if (!searchText.isEmpty()) {
+                    String appointmentId = entry.getValue(1).toString().toLowerCase();
+                    String customer = entry.getValue(2).toString().toLowerCase();
+                    searchMatches = appointmentId.contains(searchText) || customer.contains(searchText);
+                }
+                
+                return statusMatches && searchMatches;
+            }
+        };
+        
+        rowSorter.setRowFilter(rowFilter);
+        
+        SwingUtilities.invokeLater(() -> {
+            if ("Most Recent".equals(selectedSort)) {
+                rowSorter.setSortKeys(
+                    Collections.singletonList(new RowSorter.SortKey(1, SortOrder.DESCENDING))
+                );
+            } else {
+                rowSorter.setSortKeys(
+                    Collections.singletonList(new RowSorter.SortKey(1, SortOrder.ASCENDING))
+                );
+            }
+        });
+        
+        rowSorter.sort();
+    }
+    
+    private void updateTableVisibility() {
+        if (tableSwitcher == null) {
+            return;
         }
-
-        Object[] getData() {
-            return data;
-        }
-
-        String getSortDate() {
-            return sortDate;
-        }
+        
+        CardLayout layout = (CardLayout) tableSwitcher.getLayout();
+        layout.show(tableSwitcher, rowSorter.getViewRowCount() == 0 ? "EMPTY" : "TABLE");
+    }
+    
+    private void updateStatsLabel() {
+        List<Appointment> allAppointments = appointmentDAO.readAll();
+        long totalEligible = allAppointments.stream()
+            .filter(a -> a.getStatus() == AppointmentStatus.COMPLETED || a.getStatus() == AppointmentStatus.ASSIGNED)
+            .count();
+        int displayedPayments = rowSorter.getViewRowCount();
+        
+        statsLabel.setText(String.format(
+            "Total Eligible Appointments: %d    Displaying: %d",
+            totalEligible, displayedPayments
+        ));
     }
     
     private boolean isAppointmentPaid(String appointmentId, List<Payment> payments) {
@@ -384,8 +534,6 @@ public class PaymentPanel extends BasePanel {
             return;
         }
         
-        // Use the amount stored in the appointment (from appointments.txt)
-        // NOT the current price from services.txt
         double appointmentAmount = appt.getAmount();
         
         PaymentMethod[] methods = PaymentMethod.values();
@@ -412,21 +560,16 @@ public class PaymentPanel extends BasePanel {
             if (confirm == JOptionPane.YES_OPTION) {
                 Payment payment = new Payment();
                 payment.setAppointmentId(appointmentId);
-                payment.setAmount(appointmentAmount);  // Use appointment's stored amount
+                payment.setAmount(appointmentAmount);
                 payment.setPaymentDate(DateUtils.getCurrentDate());
                 payment.setPaymentMethod(method);
                 
                 boolean paymentSaved = paymentDAO.save(payment);
                 
                 if (paymentSaved) {
-                    // Update the appointment amount to match (in case it was different)
                     appt.setAmount(appointmentAmount);
                     appointmentDAO.update(appt);
-                    
-                    // IMPORTANT: Refresh the DAOs to get fresh data
                     refreshData();
-                    
-                    // Show receipt
                     showReceipt(payment, appt);
                 } else {
                     JOptionPane.showMessageDialog(this, "Failed to process payment. Please try again.", 
@@ -444,17 +587,14 @@ public class PaymentPanel extends BasePanel {
         receiptDialog.setLocationRelativeTo(this);
         receiptDialog.setResizable(true);
         
-        // Main panel with BorderLayout
         JPanel mainPanel = new JPanel(new BorderLayout());
         mainPanel.setBackground(Color.WHITE);
         
-        // Header with navy background (fixed at top)
         JPanel headerPanel = new JPanel();
         headerPanel.setBackground(NAVY);
         headerPanel.setBorder(BorderFactory.createEmptyBorder(20, 25, 15, 25));
         headerPanel.setLayout(new BoxLayout(headerPanel, BoxLayout.Y_AXIS));
         
-        // Car Logo
         JPanel logoPanel = new JPanel(new FlowLayout(FlowLayout.CENTER));
         logoPanel.setOpaque(false);
         ReceiptCarLogo carLogo = new ReceiptCarLogo();
@@ -477,13 +617,11 @@ public class PaymentPanel extends BasePanel {
         
         mainPanel.add(headerPanel, BorderLayout.NORTH);
         
-        // Scrollable content panel
         JPanel contentPanel = new JPanel();
         contentPanel.setLayout(new BoxLayout(contentPanel, BoxLayout.Y_AXIS));
         contentPanel.setBackground(Color.WHITE);
         contentPanel.setBorder(BorderFactory.createEmptyBorder(25, 40, 20, 40));
         
-        // Receipt details card
         JPanel detailsCard = new JPanel();
         detailsCard.setBackground(new Color(248, 250, 252));
         detailsCard.setBorder(BorderFactory.createCompoundBorder(
@@ -509,7 +647,6 @@ public class PaymentPanel extends BasePanel {
         addReceiptRow(detailsCard, gbc, 8, "Amount Paid:", String.format("RM %.2f", payment.getAmount()));
         addReceiptRow(detailsCard, gbc, 9, "Payment Method:", payment.getPaymentMethod().toString());
         
-        // Add card to content panel and center it
         detailsCard.setPreferredSize(new Dimension(400, detailsCard.getPreferredSize().height));
 
         JPanel detailsWrapper = new JPanel(new FlowLayout(FlowLayout.CENTER, 0, 0));
@@ -519,7 +656,6 @@ public class PaymentPanel extends BasePanel {
         contentPanel.add(detailsWrapper);
         contentPanel.add(Box.createVerticalStrut(20));
         
-        // Thank you message
         JPanel thankPanel = new JPanel();
         thankPanel.setBackground(new Color(240, 253, 244));
         thankPanel.setBorder(BorderFactory.createCompoundBorder(
@@ -540,7 +676,6 @@ public class PaymentPanel extends BasePanel {
         
         contentPanel.add(thankPanel);
         
-        // Wrap content in scroll pane
         JScrollPane scrollPane = new JScrollPane(contentPanel);
         scrollPane.setBorder(null);
         scrollPane.getVerticalScrollBar().setUnitIncrement(16);
@@ -548,7 +683,6 @@ public class PaymentPanel extends BasePanel {
         
         mainPanel.add(scrollPane, BorderLayout.CENTER);
         
-        // Footer
         JPanel footerPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 15, 15));
         footerPanel.setBackground(new Color(248, 250, 252));
         footerPanel.setBorder(BorderFactory.createMatteBorder(1, 0, 0, 0, new Color(226, 232, 240)));
@@ -648,7 +782,6 @@ public class PaymentPanel extends BasePanel {
                 writer.println("</html>");
             }
             
-            // Open the HTML file in default browser
             File htmlFile = new File(filePath);
             Desktop.getDesktop().browse(htmlFile.toURI());
             
@@ -662,13 +795,11 @@ public class PaymentPanel extends BasePanel {
     }
     
     private void printReceipt(Payment payment, Appointment appt, User customer) {
-        // Create a printable component
         JPanel printPanel = new JPanel();
         printPanel.setLayout(new BoxLayout(printPanel, BoxLayout.Y_AXIS));
         printPanel.setBackground(Color.WHITE);
         printPanel.setBorder(BorderFactory.createEmptyBorder(30, 50, 30, 50));
         
-        // Header
         JLabel titleLabel = new JLabel("PAYMENT RECEIPT");
         titleLabel.setFont(new Font("Segoe UI", Font.BOLD, 18));
         titleLabel.setForeground(NAVY);
@@ -683,13 +814,11 @@ public class PaymentPanel extends BasePanel {
         
         printPanel.add(Box.createVerticalStrut(20));
         
-        // Divider
         JSeparator sep = new JSeparator();
         sep.setMaximumSize(new Dimension(400, 2));
         printPanel.add(sep);
         printPanel.add(Box.createVerticalStrut(15));
         
-        // Details
         JPanel detailsPanel = new JPanel(new GridBagLayout());
         detailsPanel.setBackground(Color.WHITE);
         GridBagConstraints gbc = new GridBagConstraints();
@@ -714,7 +843,6 @@ public class PaymentPanel extends BasePanel {
         thankLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
         printPanel.add(thankLabel);
         
-        // Print
         try {
             PrinterJob job = PrinterJob.getPrinterJob();
             job.setPrintable((graphics, pageFormat, pageIndex) -> {
@@ -799,15 +927,16 @@ public class PaymentPanel extends BasePanel {
                 writer.println("Receipt ID,Appointment ID,Customer,Service,Amount,Date,Payment Method,Payment Status");
                 
                 boolean hasData = false;
-                for (int i = 0; i < tableModel.getRowCount(); i++) {
-                    String receiptId = tableModel.getValueAt(i, 0).toString();
-                    String appointmentId = tableModel.getValueAt(i, 1).toString();
-                    String customer = tableModel.getValueAt(i, 2).toString();
-                    String service = tableModel.getValueAt(i, 3).toString();
-                    String amount = tableModel.getValueAt(i, 4).toString();
-                    String date = tableModel.getValueAt(i, 5).toString();
-                    String method = tableModel.getValueAt(i, 6).toString();
-                    String status = tableModel.getValueAt(i, 7).toString();
+                for (int i = 0; i < rowSorter.getViewRowCount(); i++) {
+                    int modelRow = paymentTable.convertRowIndexToModel(i);
+                    String receiptId = tableModel.getValueAt(modelRow, 0).toString();
+                    String appointmentId = tableModel.getValueAt(modelRow, 1).toString();
+                    String customer = tableModel.getValueAt(modelRow, 2).toString();
+                    String service = tableModel.getValueAt(modelRow, 3).toString();
+                    String amount = tableModel.getValueAt(modelRow, 4).toString();
+                    String date = tableModel.getValueAt(modelRow, 5).toString();
+                    String method = tableModel.getValueAt(modelRow, 6).toString();
+                    String status = tableModel.getValueAt(modelRow, 7).toString();
                     
                     if (!receiptId.equals("-") && !appointmentId.equals("-")) {
                         writer.printf("\"%s\",\"%s\",\"%s\",\"%s\",\"%s\",\"%s\",\"%s\",\"%s\"%n",
@@ -821,7 +950,6 @@ public class PaymentPanel extends BasePanel {
                 }
             }
             
-            // Open the file
             File excelFile = new File(filePath);
             if (Desktop.isDesktopSupported()) {
                 Desktop.getDesktop().open(excelFile);
@@ -865,10 +993,36 @@ public class PaymentPanel extends BasePanel {
     
     @Override
     protected void addEventHandlers() {
-        // Event handlers
+        searchField.getDocument().addDocumentListener(new DocumentListener() {
+            @Override
+            public void insertUpdate(DocumentEvent e) {
+                applyFilters();
+                updateStatsLabel();
+                SwingUtilities.invokeLater(PaymentPanel.this::updateTableVisibility);
+            }
+            @Override
+            public void removeUpdate(DocumentEvent e) {
+                applyFilters();
+                updateStatsLabel();
+                SwingUtilities.invokeLater(PaymentPanel.this::updateTableVisibility);
+            }
+            @Override
+            public void changedUpdate(DocumentEvent e) {
+                applyFilters();
+                updateStatsLabel();
+                SwingUtilities.invokeLater(PaymentPanel.this::updateTableVisibility);
+            }
+        });
+        
+        statusFilterCombo.addActionListener(e -> {
+            applyFilters();
+            updateStatsLabel();
+            SwingUtilities.invokeLater(this::updateTableVisibility);
+        });
+        
+        sortCombo.addActionListener(e -> applyFilters());
     }
     
-    // Custom Car Logo for Receipt
     private class ReceiptCarLogo extends JPanel {
         public ReceiptCarLogo() {
             setOpaque(false);
@@ -988,7 +1142,7 @@ public class PaymentPanel extends BasePanel {
         private JButton button;
         private String appointmentId;
         private String actionType;
-        private int currentRow;  // Add this to track row
+        private int currentRow;
         
         public ButtonEditor() {
             panel = new JPanel(new FlowLayout(FlowLayout.CENTER, 5, 8));
@@ -1002,9 +1156,10 @@ public class PaymentPanel extends BasePanel {
             panel.removeAll();
             panel.setBackground(new Color(232, 240, 254));
             
-            appointmentId = (String) table.getValueAt(row, 1);
+            int modelRow = table.convertRowIndexToModel(row);
+            appointmentId = (String) tableModel.getValueAt(modelRow, 1);
             actionType = value != null ? value.toString() : "";
-            currentRow = row;  // Store current row
+            currentRow = row;
             
             Color btnColor = actionType.equals("COLLECT PAYMENT") ? ORANGE : GREEN;
             button = new JButton(actionType);
@@ -1019,12 +1174,10 @@ public class PaymentPanel extends BasePanel {
             button.addActionListener(e -> {
                 if (actionType.equals("COLLECT PAYMENT")) {
                     collectPayment(appointmentId);
-                    // Refresh the entire table after payment
                     SwingUtilities.invokeLater(() -> {
                         refreshData();
                     });
                 } else if (actionType.equals("VIEW RECEIPT")) {
-                    // Get fresh data when viewing receipt
                     Appointment appt = appointmentDAO.findById(appointmentId);
                     Payment payment = null;
                     for (Payment p : paymentDAO.readAll()) {

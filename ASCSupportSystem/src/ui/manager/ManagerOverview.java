@@ -22,8 +22,11 @@ import javax.swing.table.JTableHeader;
 import java.awt.*;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.List;
+import java.util.stream.Collectors;
 
 public class ManagerOverview extends BasePanel {
     
@@ -36,16 +39,20 @@ public class ManagerOverview extends BasePanel {
     private PaymentDAO paymentDAO;
     private JButton refreshButton;
     private JPanel statsPanel;
-    private JPanel activitiesPanel;
+    private JPanel alertsPanel;
     private JPanel techStatusPanel;
     private JPanel reviewPanel;
     private JPanel reviewContentPanel;
-    private JPanel activitiesContentPanel;
+    private JPanel alertsContentPanel;
     private JPanel techStatusContentPanel;
     
     private final Color CARD_BORDER = new Color(226, 232, 240);
     private final Color LIGHT_BG = new Color(248, 250, 252);
     private final Color TEXT_MUTED = new Color(100, 116, 139);
+    private final Color WARNING_ORANGE = new Color(234, 88, 12);
+    private final Color DANGER_RED = new Color(220, 38, 38);
+    private final Color SUCCESS_GREEN = new Color(34, 197, 94);
+    private final Color INFO_BLUE = new Color(59, 130, 246);
     
     public ManagerOverview(User user) {
         this.currentUser = user;
@@ -57,7 +64,7 @@ public class ManagerOverview extends BasePanel {
         addEventHandlers();
         
         refreshStats(statsPanel);
-        refreshActivities();
+        refreshAlerts();
         refreshTechStatus(techStatusContentPanel);
         refreshReview();
     }
@@ -101,8 +108,8 @@ public class ManagerOverview extends BasePanel {
         JPanel contentRow = new JPanel(new GridLayout(1, 2, 15, 0));
         contentRow.setBackground(PANEL_BG);
         
-        activitiesPanel = createActivitiesPanel();
-        contentRow.add(activitiesPanel);
+        alertsPanel = createAlertsPanel();
+        contentRow.add(alertsPanel);
         
         JPanel rightPanel = createRightPanel();
         contentRow.add(rightPanel);
@@ -145,7 +152,7 @@ public class ManagerOverview extends BasePanel {
         
         List<Appointment> allAppointments = appointmentDAO.readAll();
         String today = DateUtils.getCurrentDate();
-        String currentTime = getCurrentTime(); // Get current time in HH:MM format
+        String currentTime = getCurrentTime();
         
         List<Appointment> todayAppointments = new ArrayList<>();
         for (Appointment a : allAppointments) {
@@ -159,13 +166,9 @@ public class ManagerOverview extends BasePanel {
         
         List<Payment> payments = paymentDAO.readAll();
         Set<String> paidAppointmentIds = new HashSet<>();
-        Map<String, Double> paymentAmountMap = new HashMap<>();
-        Map<String, String> paymentDateMap = new HashMap<>();
         
         for (Payment p : payments) {
             paidAppointmentIds.add(p.getAppointmentId());
-            paymentAmountMap.put(p.getAppointmentId(), p.getAmount());
-            paymentDateMap.put(p.getAppointmentId(), p.getPaymentDate());
         }
         
         // Calculate revenue based on TODAY's payment date
@@ -183,9 +186,9 @@ public class ManagerOverview extends BasePanel {
             }
         }
         
-        panel.add(createStatCard("Appointments Today", String.valueOf(todayAppointments.size()), null, new Color(59, 130, 246)));
-        panel.add(createStatCard("Ongoing Services", String.valueOf(ongoingCount), null, new Color(234, 88, 12)));
-        panel.add(createStatCard("Completed Today", String.valueOf(completedCount), null, new Color(34, 197, 94)));
+        panel.add(createStatCard("Appointments Today", String.valueOf(todayAppointments.size()), null, INFO_BLUE));
+        panel.add(createStatCard("Ongoing Services", String.valueOf(ongoingCount), null, WARNING_ORANGE));
+        panel.add(createStatCard("Completed Today", String.valueOf(completedCount), null, SUCCESS_GREEN));
         panel.add(createStatCard("Revenue Today", String.format("RM %.2f", revenue), null, new Color(168, 85, 247)));
         
         panel.revalidate();
@@ -237,7 +240,7 @@ public class ManagerOverview extends BasePanel {
         return card;
     }
     
-    private JPanel createActivitiesPanel() {
+    private JPanel createAlertsPanel() {
         JPanel panel = new JPanel();
         panel.setLayout(new BorderLayout());
         panel.setBackground(Color.WHITE);
@@ -250,23 +253,23 @@ public class ManagerOverview extends BasePanel {
             BorderFactory.createEmptyBorder(8, 12, 8, 12)
         ));
         
-        JLabel titleLabel = new JLabel("Most Recent Activities");
+        JLabel titleLabel = new JLabel("Operational Alerts");
         titleLabel.setFont(new Font("Segoe UI", Font.BOLD, 13));
-        titleLabel.setForeground(new Color(59, 130, 246));  // Blue color like the UI style
+        titleLabel.setForeground(WARNING_ORANGE);
         headerPanel.add(titleLabel, BorderLayout.WEST);
         
-        JLabel descLabel = new JLabel("Latest appointments and transactions");  // Added description
+        JLabel descLabel = new JLabel("Critical issues requiring attention");
         descLabel.setFont(new Font("Segoe UI", Font.PLAIN, 10));
         descLabel.setForeground(TEXT_MUTED);
         headerPanel.add(descLabel, BorderLayout.EAST);
         
         panel.add(headerPanel, BorderLayout.NORTH);
         
-        activitiesContentPanel = new JPanel();
-        activitiesContentPanel.setLayout(new BoxLayout(activitiesContentPanel, BoxLayout.Y_AXIS));
-        activitiesContentPanel.setBackground(Color.WHITE);
+        alertsContentPanel = new JPanel();
+        alertsContentPanel.setLayout(new BoxLayout(alertsContentPanel, BoxLayout.Y_AXIS));
+        alertsContentPanel.setBackground(Color.WHITE);
         
-        JScrollPane scrollPane = new JScrollPane(activitiesContentPanel);
+        JScrollPane scrollPane = new JScrollPane(alertsContentPanel);
         scrollPane.setBorder(null);
         scrollPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED);
         scrollPane.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
@@ -278,188 +281,291 @@ public class ManagerOverview extends BasePanel {
         return panel;
     }
     
-    private String getPaymentDate(String appointmentId, List<Payment> payments) {
-        for (Payment p : payments) {
-            if (p.getAppointmentId().equals(appointmentId)) {
-                return p.getPaymentDate();
-            }
-        }
-        return "0000-00-00"; // Default for unpaid
-    }
-    
-    private void refreshActivities() {
-        if (activitiesContentPanel == null) return;
+    private void refreshAlerts() {
+        if (alertsContentPanel == null) return;
         
-        activitiesContentPanel.removeAll();
+        alertsContentPanel.removeAll();
         
-        List<Appointment> appointments = appointmentDAO.readAll();
+        List<Appointment> allAppointments = appointmentDAO.readAll();
         List<Payment> payments = paymentDAO.readAll();
-        
+        String today = DateUtils.getCurrentDate();
         Set<String> paidAppointmentIds = new HashSet<>();
-        Map<String, Double> paymentAmountMap = new HashMap<>();
-        Map<String, String> paymentDateMap = new HashMap<>();
         
         for (Payment p : payments) {
             paidAppointmentIds.add(p.getAppointmentId());
-            paymentAmountMap.put(p.getAppointmentId(), p.getAmount());
-            paymentDateMap.put(p.getAppointmentId(), p.getPaymentDate());
         }
         
-        // Create a list of activity items with their display date for sorting
-        List<ActivityItem> activityItems = new ArrayList<>();
+        // 1. Financial / Payment Risk - Completed appointments awaiting payment ONLY
+        List<Appointment> completedUnpaid = new ArrayList<>();
+        for (Appointment a : allAppointments) {
+            if (a.getStatus() == AppointmentStatus.COMPLETED && !paidAppointmentIds.contains(a.getId())) {
+                completedUnpaid.add(a);
+            }
+        }
         
-        // Add paid activities first (based on payment date)
-        for (Payment p : payments) {
-            Appointment appointment = null;
-            for (Appointment a : appointments) {
-                if (a.getId().equals(p.getAppointmentId())) {
-                    appointment = a;
-                    break;
+        // Remove overdue logic - only show completed unpaid appointments
+        int totalPending = completedUnpaid.size();
+        
+        // 2. Technician Issues - Appointments without technician assignment
+        List<Appointment> unassignedAppointments = new ArrayList<>();
+        for (Appointment a : allAppointments) {
+            if (a.getStatus() == AppointmentStatus.PENDING && 
+                (a.getTechnicianId() == null || a.getTechnicianId().trim().isEmpty())) {
+                unassignedAppointments.add(a);
+            }
+        }
+        
+        // 3. Scheduling / Future Load - Upcoming appointments (next 7 days)
+        LocalDate todayDate = LocalDate.parse(today);
+        LocalDate weekLater = todayDate.plusDays(7);
+        List<Appointment> upcomingAppointments = new ArrayList<>();
+        for (Appointment a : allAppointments) {
+            if (a.getDate() != null && a.getStatus() != AppointmentStatus.CANCELLED && a.getStatus() != AppointmentStatus.COMPLETED) {
+                try {
+                    LocalDate apptDate = LocalDate.parse(a.getDate());
+                    if (!apptDate.isBefore(todayDate) && !apptDate.isAfter(weekLater)) {
+                        upcomingAppointments.add(a);
+                    }
+                } catch (Exception e) {
+                    // Skip invalid dates
                 }
             }
-            if (appointment != null) {
-                ActivityItem item = new ActivityItem();
-                item.type = "PAID";
-                item.appointment = appointment;
-                item.payment = p;
-                item.displayDate = p.getPaymentDate(); // Sort by payment date
-                activityItems.add(item);
+        }
+        
+        // Find peak day
+        String peakDay = "";
+        int maxCount = 0;
+        java.util.Map<String, Integer> dayCount = new java.util.HashMap<>();
+        for (Appointment a : upcomingAppointments) {
+            dayCount.put(a.getDate(), dayCount.getOrDefault(a.getDate(), 0) + 1);
+        }
+        for (java.util.Map.Entry<String, Integer> entry : dayCount.entrySet()) {
+            if (entry.getValue() > maxCount) {
+                maxCount = entry.getValue();
+                peakDay = entry.getKey();
             }
         }
         
-        // Add non-paid activities (appointments without payment)
-        for (Appointment a : appointments) {
-            if (!paidAppointmentIds.contains(a.getId())) {
-                ActivityItem item = new ActivityItem();
-                item.type = "APPOINTMENT";
-                item.appointment = a;
-                item.displayDate = a.getDate(); // Sort by appointment date
-                activityItems.add(item);
-            }
+        // Tomorrow's workload
+        String tomorrow = todayDate.plusDays(1).toString();
+        long tomorrowCount = upcomingAppointments.stream()
+            .filter(a -> a.getDate() != null && a.getDate().equals(tomorrow))
+            .count();
+        
+        // Create vertical cards container
+        JPanel cardsContainer = new JPanel();
+        cardsContainer.setLayout(new BoxLayout(cardsContainer, BoxLayout.Y_AXIS));
+        cardsContainer.setBackground(Color.WHITE);
+        cardsContainer.setBorder(BorderFactory.createEmptyBorder(8, 8, 8, 8));
+        cardsContainer.setAlignmentX(Component.LEFT_ALIGNMENT);
+        
+        // Card 1: Financial / Payment Risk - Only completed appointments awaiting payment
+        JPanel card1 = createAlertCard(
+            "PAYMENT RISK",
+            String.valueOf(totalPending),
+            getFinancialDetail(completedUnpaid.size()),
+            DANGER_RED
+        );
+        card1.setAlignmentX(Component.LEFT_ALIGNMENT);
+        cardsContainer.add(card1);
+        cardsContainer.add(Box.createVerticalStrut(10));
+        
+        // Card 2: Technician Issues
+        JPanel card2 = createAlertCard(
+            "TECHNICIAN ISSUES",
+            String.valueOf(unassignedAppointments.size()),
+            unassignedAppointments.size() + " appointment(s) without technician",
+            unassignedAppointments.size() > 0 ? WARNING_ORANGE : SUCCESS_GREEN
+        );
+        card2.setAlignmentX(Component.LEFT_ALIGNMENT);
+        cardsContainer.add(card2);
+        cardsContainer.add(Box.createVerticalStrut(10));
+        
+        // Card 3: Scheduling Load
+        String schedulingDetail = upcomingAppointments.size() + " upcoming appointment(s) for next 7 days";
+        if (tomorrowCount > 0) {
+            schedulingDetail += " · Tomorrow: " + tomorrowCount;
         }
+        JPanel card3 = createAlertCard(
+            "SCHEDULING LOAD",
+            String.valueOf(upcomingAppointments.size()),
+            schedulingDetail,
+            INFO_BLUE
+        );
+        card3.setAlignmentX(Component.LEFT_ALIGNMENT);
+        cardsContainer.add(card3);
+        cardsContainer.add(Box.createVerticalStrut(10));
         
-        // Sort by display date (newest first)
-        activityItems.sort((i1, i2) -> i2.displayDate.compareTo(i1.displayDate));
+        // Card 4: Peak Day
+        String peakInfo = peakDay.isEmpty() ? "No appointments this week" : formatDate(peakDay) + " (" + maxCount + " appointment(s))";
+        JPanel card4 = createAlertCard(
+            "PEAK DAY",
+            peakDay.isEmpty() ? "0" : String.valueOf(maxCount),
+            peakInfo,
+            new Color(168, 85, 247)
+        );
+        card4.setAlignmentX(Component.LEFT_ALIGNMENT);
+        cardsContainer.add(card4);
         
-        int count = 0;
+        alertsContentPanel.add(cardsContainer);
         
-        for (ActivityItem item : activityItems) {
-            if (count >= 10) break;
-            
-            JPanel itemPanel = new JPanel(new BorderLayout());
-            itemPanel.setBackground(Color.WHITE);
-            itemPanel.setBorder(BorderFactory.createEmptyBorder(8, 12, 8, 12));
-            itemPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 50));
-            itemPanel.setPreferredSize(new Dimension(0, 50));
-            
-            JPanel leftPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
-            leftPanel.setBackground(Color.WHITE);
-            
-            JLabel dotLabel = new JLabel("●");
-            dotLabel.setFont(new Font("Segoe UI", Font.PLAIN, 8));
-            
-            Color dotColor;
-            String description;
-            
-            if (item.type.equals("PAID")) {
-                dotColor = new Color(168, 85, 247); // Purple for paid
-                User customer = userDAO.findById(item.appointment.getCustomerId());
-                String customerName = customer != null ? customer.getFullName() : "Customer";
-                String paymentDate = item.payment.getPaymentDate();
-                String serviceDate = item.appointment.getDate();
-                
-                description = String.format("%s paid %.2f for %s service (scheduled: %s) on %s",
-                    customerName,
-                    item.payment.getAmount(),
-                    item.appointment.getServiceType(),
-                    serviceDate,
-                    paymentDate
-                );
-            } else {
-                // Appointment without payment
-                if (item.appointment.getStatus() == AppointmentStatus.ASSIGNED) {
-                    dotColor = new Color(59, 130, 246); // Blue
-                    User customer = userDAO.findById(item.appointment.getCustomerId());
-                    String customerName = customer != null ? customer.getFullName() : "Customer";
-                    User technician = userDAO.findById(item.appointment.getTechnicianId());
-                    String techName = technician != null ? technician.getFullName() : "Technician";
-                    
-                    description = String.format("%s assigned to %s for %s service on %s at %s",
-                        customerName,
-                        techName,
-                        item.appointment.getServiceType(),
-                        item.appointment.getDate(),
-                        item.appointment.getStartTime()
-                    );
-                } else if (item.appointment.getStatus() == AppointmentStatus.COMPLETED) {
-                    dotColor = new Color(34, 197, 94); // Green
-                    User customer = userDAO.findById(item.appointment.getCustomerId());
-                    String customerName = customer != null ? customer.getFullName() : "Customer";
-                    
-                    description = String.format("%s completed %s service on %s at %s (awaiting payment)",
-                        customerName,
-                        item.appointment.getServiceType(),
-                        item.appointment.getDate(),
-                        item.appointment.getStartTime()
-                    );
-                } else if (item.appointment.getStatus() == AppointmentStatus.PENDING) {
-                    dotColor = new Color(234, 179, 8); // Yellow
-                    User customer = userDAO.findById(item.appointment.getCustomerId());
-                    String customerName = customer != null ? customer.getFullName() : "Customer";
-                    
-                    description = String.format("%s booked %s service for %s at %s",
-                        customerName,
-                        item.appointment.getServiceType(),
-                        item.appointment.getDate(),
-                        item.appointment.getStartTime()
-                    );
-                } else {
-                    dotColor = new Color(107, 114, 128); // Gray
-                    description = "Appointment " + item.appointment.getId() + " " + item.appointment.getStatus();
-                }
-            }
-            
-            dotLabel.setForeground(dotColor);
-            leftPanel.add(dotLabel);
-            
-            JLabel textLabel = new JLabel(description);
-            textLabel.setFont(new Font("Segoe UI", Font.PLAIN, 11));
-            textLabel.setForeground(new Color(60, 60, 60));
-            leftPanel.add(textLabel);
-            
-            itemPanel.add(leftPanel, BorderLayout.WEST);
-            activitiesContentPanel.add(itemPanel);
-            
-            if (count < activityItems.size() - 1 && count < 9) {
-                JSeparator separator = new JSeparator();
-                separator.setForeground(new Color(230, 230, 230));
-                separator.setMaximumSize(new Dimension(Integer.MAX_VALUE, 1));
-                activitiesContentPanel.add(separator);
-            }
-            count++;
-        }
-        
-        if (activityItems.isEmpty()) {
-            JPanel emptyPanel = new JPanel(new GridBagLayout());
-            emptyPanel.setBackground(Color.WHITE);
-            emptyPanel.setPreferredSize(new Dimension(0, 150));
-            
-            JLabel emptyLabel = new JLabel("No recent activities");
-            emptyLabel.setFont(new Font("Segoe UI", Font.ITALIC, 12));
-            emptyLabel.setForeground(TEXT_MUTED);
-            emptyPanel.add(emptyLabel);
-            activitiesContentPanel.add(emptyPanel);
-        }
-        
-        activitiesContentPanel.revalidate();
-        activitiesContentPanel.repaint();
+        alertsContentPanel.revalidate();
+        alertsContentPanel.repaint();
     }
 
-    private class ActivityItem {
-        String type;
-        Appointment appointment;
-        Payment payment;
-        String displayDate;
+    private String getFinancialDetail(int completedUnpaid) {
+        if (completedUnpaid == 0) {
+            return "All payments up to date";
+        }
+        if (completedUnpaid == 1) {
+            return completedUnpaid + " completed appointment awaiting payment";
+        }
+        return completedUnpaid + " completed appointments awaiting payment";
+    }
+
+    private String getFinancialDetail(int completedUnpaid, int overdueUnpaid) {
+        if (completedUnpaid == 0 && overdueUnpaid == 0) {
+            return "All payments up to date";
+        }
+        if (completedUnpaid > 0 && overdueUnpaid > 0) {
+            return completedUnpaid + " pending · " + overdueUnpaid + " overdue";
+        }
+        if (completedUnpaid > 0) {
+            return completedUnpaid + " pending payment(s)";
+        }
+        return overdueUnpaid + " overdue payment(s)";
+    }
+
+    private JPanel createAlertCard(String title, String value, String detail, Color accentColor) {
+        JPanel card = new JPanel(new BorderLayout());
+        card.setBackground(Color.WHITE);
+        card.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createLineBorder(new Color(226, 232, 240), 1),
+            BorderFactory.createEmptyBorder(0, 0, 0, 0)
+        ));
+        card.setMaximumSize(new Dimension(Integer.MAX_VALUE, 75));
+        card.setPreferredSize(new Dimension(0, 75));
+        
+        // Left accent bar
+        JPanel accentBar = new JPanel();
+        accentBar.setBackground(accentColor);
+        accentBar.setPreferredSize(new Dimension(4, 0));
+        card.add(accentBar, BorderLayout.WEST);
+        
+        // Content panel
+        JPanel content = new JPanel();
+        content.setLayout(new BoxLayout(content, BoxLayout.Y_AXIS));
+        content.setBackground(Color.WHITE);
+        content.setBorder(BorderFactory.createEmptyBorder(10, 14, 10, 14));
+        content.setAlignmentX(Component.LEFT_ALIGNMENT);
+        
+        // Title
+        JLabel titleLabel = new JLabel(title);
+        titleLabel.setFont(new Font("Segoe UI", Font.BOLD, 10));
+        titleLabel.setForeground(new Color(100, 116, 139));
+        titleLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        content.add(titleLabel);
+        content.add(Box.createVerticalStrut(4));
+        
+        // Value and detail row
+        JPanel rowPanel = new JPanel();
+        rowPanel.setLayout(new BoxLayout(rowPanel, BoxLayout.X_AXIS));
+        rowPanel.setBackground(Color.WHITE);
+        rowPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        
+        JLabel valueLabel = new JLabel(value);
+        valueLabel.setFont(new Font("Segoe UI", Font.BOLD, 24));
+        valueLabel.setForeground(accentColor);
+        rowPanel.add(valueLabel);
+        
+        rowPanel.add(Box.createHorizontalStrut(12));
+        
+        // Create detail label with background - FIXED: wraps text only
+        JLabel detailLabel = new JLabel(detail);
+        detailLabel.setFont(new Font("Segoe UI", Font.PLAIN, 10));
+        detailLabel.setForeground(getDetailTextColor(title));
+        detailLabel.setOpaque(true);
+        detailLabel.setBackground(getDetailBackgroundColor(title));
+        detailLabel.setBorder(BorderFactory.createEmptyBorder(4, 10, 4, 10));
+        
+        rowPanel.add(detailLabel);
+        rowPanel.add(Box.createHorizontalGlue());
+        
+        content.add(rowPanel);
+        
+        card.add(content, BorderLayout.CENTER);
+        
+        return card;
+    }
+
+    private Color getDetailBackgroundColor(String title) {
+        switch (title) {
+            case "PAYMENT RISK":
+                return new Color(254, 242, 242);
+            case "TECHNICIAN ISSUES":
+                return new Color(255, 251, 235);
+            case "SCHEDULING LOAD":
+                return new Color(239, 246, 255);
+            case "PEAK DAY":
+                return new Color(245, 243, 255);
+            default:
+                return new Color(248, 250, 252);
+        }
+    }
+
+    private Color getDetailTextColor(String title) {
+        switch (title) {
+            case "PAYMENT RISK":
+                return new Color(185, 28, 28);
+            case "TECHNICIAN ISSUES":
+                return new Color(180, 83, 9);
+            case "SCHEDULING LOAD":
+                return new Color(29, 78, 216);
+            case "PEAK DAY":
+                return new Color(126, 34, 206);
+            default:
+                return new Color(55, 65, 81);
+        }
+    }
+
+    private String formatDate(String dateString) {
+        try {
+            LocalDate date = LocalDate.parse(dateString);
+            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd MMM yyyy");
+            return date.format(formatter);
+        } catch (Exception e) {
+            return dateString;
+        }
+    }
+
+    private void addAlertSection(String title, Color color) {
+        JPanel sectionPanel = new JPanel(new BorderLayout());
+        sectionPanel.setBackground(Color.WHITE);
+        sectionPanel.setBorder(BorderFactory.createEmptyBorder(8, 12, 4, 12));
+        sectionPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 30));
+        sectionPanel.setPreferredSize(new Dimension(0, 30));
+        
+        JLabel titleLabel = new JLabel(title);
+        titleLabel.setFont(new Font("Segoe UI", Font.BOLD, 11));
+        titleLabel.setForeground(color);
+        sectionPanel.add(titleLabel, BorderLayout.WEST);
+        
+        alertsContentPanel.add(sectionPanel);
+    }
+
+    private void addAlertItem(String text, Color dotColor, JPanel panel) {
+        JPanel itemPanel = new JPanel(new BorderLayout());
+        itemPanel.setBackground(Color.WHITE);
+        itemPanel.setBorder(BorderFactory.createEmptyBorder(4, 24, 4, 12));
+        itemPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 28));
+        itemPanel.setPreferredSize(new Dimension(0, 28));
+        
+        JLabel textLabel = new JLabel(text);
+        textLabel.setFont(new Font("Segoe UI", Font.PLAIN, 11));
+        textLabel.setForeground(new Color(60, 60, 60));
+        itemPanel.add(textLabel, BorderLayout.WEST);
+        
+        panel.add(itemPanel);
     }
     
     private JPanel createRightPanel() {
@@ -492,7 +598,7 @@ public class ManagerOverview extends BasePanel {
         
         JLabel titleLabel = new JLabel("Technician Status");
         titleLabel.setFont(new Font("Segoe UI", Font.BOLD, 13));
-        titleLabel.setForeground(new Color(34, 197, 94));
+        titleLabel.setForeground(SUCCESS_GREEN);
         headerPanel.add(titleLabel, BorderLayout.WEST);
         
         JLabel descLabel = new JLabel("Current technician availability");
@@ -506,13 +612,11 @@ public class ManagerOverview extends BasePanel {
         techStatusContentPanel.setLayout(new BoxLayout(techStatusContentPanel, BoxLayout.Y_AXIS));
         techStatusContentPanel.setBackground(Color.WHITE);
         
-        // Use preferred size that fits content, scroll only when needed
         JScrollPane scrollPane = new JScrollPane(techStatusContentPanel);
         scrollPane.setBorder(null);
         scrollPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED);
         scrollPane.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
         scrollPane.getViewport().setBackground(Color.WHITE);
-        // Set preferred height to fit 3 technicians (44px per row + separators)
         scrollPane.setPreferredSize(new Dimension(0, 150));
         
         panel.add(scrollPane, BorderLayout.CENTER);
@@ -526,7 +630,7 @@ public class ManagerOverview extends BasePanel {
         List<Technician> techs = userDAO.readTechnicians();
         List<Appointment> appointments = appointmentDAO.readAll();
         String today = DateUtils.getCurrentDate();
-        String currentTime = getCurrentTime(); // Get current time in HH:MM format
+        String currentTime = getCurrentTime();
         
         for (int i = 0; i < techs.size(); i++) {
             Technician tech = techs.get(i);
@@ -537,7 +641,6 @@ public class ManagerOverview extends BasePanel {
                 if (tech.getId().equals(a.getTechnicianId())) {
                     if (a.getDate() != null && a.getDate().equals(today)) {
                         todayJobs++;
-                        // Check if technician is currently working on this appointment
                         if (a.getStatus() == AppointmentStatus.ASSIGNED && isOngoing(a.getStartTime(), currentTime, a.getServiceType())) {
                             isBusy = true;
                         }
@@ -576,10 +679,10 @@ public class ManagerOverview extends BasePanel {
             statusLabel.setBorder(BorderFactory.createEmptyBorder(3, 10, 3, 10));
             
             if (isBusy) {
-                statusLabel.setForeground(new Color(234, 88, 12));
+                statusLabel.setForeground(WARNING_ORANGE);
                 statusLabel.setBackground(new Color(255, 237, 213));
             } else {
-                statusLabel.setForeground(new Color(34, 197, 94));
+                statusLabel.setForeground(SUCCESS_GREEN);
                 statusLabel.setBackground(new Color(220, 252, 231));
             }
             statusLabel.setOpaque(true);
@@ -683,7 +786,7 @@ public class ManagerOverview extends BasePanel {
         reviewContentPanel = new JPanel();
         reviewContentPanel.setLayout(new BoxLayout(reviewContentPanel, BoxLayout.Y_AXIS));
         reviewContentPanel.setBackground(Color.WHITE);
-        reviewContentPanel.setBorder(BorderFactory.createEmptyBorder(0, 12, 0, 12));  // Remove bottom padding
+        reviewContentPanel.setBorder(BorderFactory.createEmptyBorder(0, 12, 0, 12));
         
         panel.add(reviewContentPanel, BorderLayout.CENTER);
         
@@ -711,7 +814,6 @@ public class ManagerOverview extends BasePanel {
             emptyLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
             reviewContentPanel.add(emptyLabel);
         } else {
-            // Show only last 3 comments (most recent)
             int start = Math.max(0, ratedComments.size() - 3);
             int itemCount = 0;
             for (int i = ratedComments.size() - 1; i >= start; i--) {
@@ -729,7 +831,7 @@ public class ManagerOverview extends BasePanel {
                 JPanel reviewItem = new JPanel();
                 reviewItem.setLayout(new BoxLayout(reviewItem, BoxLayout.Y_AXIS));
                 reviewItem.setBackground(Color.WHITE);
-                reviewItem.setBorder(BorderFactory.createEmptyBorder(8, 0, 8, 0));  // Remove bottom border, just padding
+                reviewItem.setBorder(BorderFactory.createEmptyBorder(8, 0, 8, 0));
                 reviewItem.setAlignmentX(Component.LEFT_ALIGNMENT);
                 
                 JLabel ratingLabel = new JLabel("Rating: " + comment.getRating() + "/5");
@@ -781,7 +883,7 @@ public class ManagerOverview extends BasePanel {
     private void refreshDashboard() {
         refreshData();
         refreshStats(statsPanel);
-        refreshActivities();
+        refreshAlerts();
         refreshTechStatus(techStatusContentPanel);
         refreshReview();
         

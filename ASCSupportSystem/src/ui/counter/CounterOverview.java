@@ -305,7 +305,7 @@ public class CounterOverview extends BasePanel {
         refreshButton.addActionListener(e -> {
             refreshData();
             refreshDashboard();
-            JOptionPane.showMessageDialog(this, "Dashboard data has been refreshed from files.", 
+            JOptionPane.showMessageDialog(this, "Dashboard data has been refreshed.", 
                 "Refresh Complete", JOptionPane.INFORMATION_MESSAGE);
         });
         
