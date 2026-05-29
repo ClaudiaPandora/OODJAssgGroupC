@@ -116,7 +116,7 @@ public class ManagerOverview extends BasePanel {
         
         mainPanel.add(contentRow);
         
-        // Remove JScrollPane - add mainPanel directly
+        // Remove JScrollPane 
         add(mainPanel, BorderLayout.CENTER);
     }
     

@@ -269,17 +269,14 @@ public class FeedbackPanel extends BasePanel {
         // Load customer comments (with rating filter applied)
         applyRatingFilter();
         
-        // Reset scroll position to top
-        SwingUtilities.invokeLater(() -> {
-            feedbackScrollPane.getVerticalScrollBar().setValue(0);
-            commentScrollPane.getVerticalScrollBar().setValue(0);
-        });
-        
         // Refresh UI
         feedbackContainer.revalidate();
         feedbackContainer.repaint();
         commentContainer.revalidate();
         commentContainer.repaint();
+        
+        // Ensure scroll to top
+        scrollToTop();
     }
     
     private void applyRatingFilter() {
@@ -337,6 +334,9 @@ public class FeedbackPanel extends BasePanel {
         
         commentContainer.revalidate();
         commentContainer.repaint();
+        
+        // Scroll to top after filtering
+        scrollToTop();
     }
     
     private void addEmptyMessage(JPanel container, String message) {
@@ -390,7 +390,7 @@ public class FeedbackPanel extends BasePanel {
         entry.add(headerRow);
         entry.add(Box.createVerticalStrut(6));
         
-        // Row 2: Note Content - using JTextArea with proper sizing
+        // Row 2: Note Content 
         JTextArea contentArea = new JTextArea(techNote.getContent());
         contentArea.setFont(new Font("Segoe UI", Font.PLAIN, 12));
         contentArea.setForeground(new Color(60, 60, 60));
@@ -467,7 +467,7 @@ public class FeedbackPanel extends BasePanel {
         entry.add(headerRow);
         entry.add(Box.createVerticalStrut(6));
         
-        // Row 2: Comment Content - using JTextArea with proper sizing
+        // Row 2: Comment Content 
         JTextArea contentArea = new JTextArea(comment.getContent());
         contentArea.setFont(new Font("Segoe UI", Font.PLAIN, 12));
         contentArea.setForeground(new Color(60, 60, 60));
@@ -505,6 +505,32 @@ public class FeedbackPanel extends BasePanel {
         return entry;
     }
     
+    private void scrollToTop() {
+        SwingUtilities.invokeLater(() -> {
+            if (feedbackScrollPane != null) {
+                JScrollBar feedbackBar = feedbackScrollPane.getVerticalScrollBar();
+                if (feedbackBar != null) {
+                    feedbackBar.setValue(0);
+                }
+                feedbackScrollPane.getViewport().setViewPosition(new Point(0, 0));
+            }
+            
+            if (commentScrollPane != null) {
+                JScrollBar commentBar = commentScrollPane.getVerticalScrollBar();
+                if (commentBar != null) {
+                    commentBar.setValue(0);
+                }
+                commentScrollPane.getViewport().setViewPosition(new Point(0, 0));
+            }
+        });
+    }
+    
+    private void setupRatingFilterListener() {
+        ratingFilterCombo.addActionListener(e -> {
+            applyRatingFilter(); 
+        });
+    }
+    
     public void refreshData() {
         // Re-initialize DAOs to ensure fresh data from files
         this.techNoteDAO = new FeedbackDAO();
@@ -512,7 +538,7 @@ public class FeedbackPanel extends BasePanel {
         this.appointmentDAO = new AppointmentDAO();
         this.userDAO = new UserDAO();
         
-        loadData();
+        loadData(); 
         
         JOptionPane.showMessageDialog(this, 
             "Data has been refreshed", 

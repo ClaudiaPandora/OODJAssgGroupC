@@ -465,9 +465,34 @@ public class CustomerFeedbackPanel extends BasePanel {
 
     private List<Appointment> getEligibleAppointments() {
         List<Appointment> result = new ArrayList<>();
+        List<Comment> allComments = commentDAO.readAll();
+        
         for (Appointment appointment : appointmentDAO.findByCustomerId(currentUser.getId())) {
             if (appointment.getStatus() == AppointmentStatus.COMPLETED) {
-                result.add(appointment);
+                // Check if both technician and counter staff have been rated by this customer
+                boolean technicianRated = false;
+                boolean counterStaffRated = false;
+                
+                for (Comment comment : allComments) {
+                    if (currentUser.getId().equals(comment.getCustomerId()) && 
+                        appointment.getId().equals(comment.getAppointmentId())) {
+                        
+                        if (comment.getTechnicianId() != null && 
+                            comment.getTechnicianId().equals(appointment.getTechnicianId())) {
+                            technicianRated = true;
+                        }
+                        
+                        if (comment.getCounterStaffId() != null && 
+                            comment.getCounterStaffId().equals(appointment.getCounterStaffId())) {
+                            counterStaffRated = true;
+                        }
+                    }
+                }
+                
+                // Only include appointment if NOT both have been rated
+                if (!(technicianRated && counterStaffRated)) {
+                    result.add(appointment);
+                }
             }
         }
         return result;
@@ -475,23 +500,46 @@ public class CustomerFeedbackPanel extends BasePanel {
 
     private void loadAppointments() {
         appointmentCombo.removeAllItems();
-        for (Appointment appointment : getEligibleAppointments()) {
-            appointmentCombo.addItem(new AppointmentItem(appointment));
-        }
-        if (appointmentCombo.getItemCount() > 0) {
-            appointmentCombo.setSelectedIndex(0);
+        List<Appointment> eligibleAppointments = getEligibleAppointments();
+        
+        if (eligibleAppointments.isEmpty()) {
+            appointmentCombo.addItem(new AppointmentItem(null));
+            technicianCard.setVisible(false);
+            counterStaffCard.setVisible(false);
+            
+            // Show message in the combo box
+            JPanel parent = (JPanel) appointmentCombo.getParent();
+            JOptionPane.showMessageDialog(this, 
+                "No appointments available for feedback.\n\n" +
+                "All completed appointments have already been rated for both technician and counter staff.",
+                "No Appointments", 
+                JOptionPane.INFORMATION_MESSAGE);
+        } else {
+            for (Appointment appointment : eligibleAppointments) {
+                appointmentCombo.addItem(new AppointmentItem(appointment));
+            }
+            if (appointmentCombo.getItemCount() > 0) {
+                appointmentCombo.setSelectedIndex(0);
+            }
+            technicianCard.setVisible(true);
+            counterStaffCard.setVisible(true);
         }
         updateSelectionInfo();
     }
 
     private void updateSelectionInfo() {
         AppointmentItem selected = (AppointmentItem) appointmentCombo.getSelectedItem();
-        if (selected == null) {
+        if (selected == null || selected.getAppointment() == null) {
             technicianInfoLabel.setText("Technician: -");
             counterStaffInfoLabel.setText("Counter Staff: -");
+            technicianCard.setVisible(false);
+            counterStaffCard.setVisible(false);
             return;
         }
 
+        technicianCard.setVisible(true);
+        counterStaffCard.setVisible(true);
+        
         Appointment appointment = selected.getAppointment();
         
         String technicianName = resolveUserName(appointment.getTechnicianId());
@@ -632,6 +680,9 @@ public class CustomerFeedbackPanel extends BasePanel {
 
         @Override
         public String toString() {
+            if (appointment == null) {
+                return "No appointments available";
+            }
             String serviceType = appointment.getServiceType() == ServiceType.NORMAL ? "Normal" : "Major";
             return appointment.getId() + " - " + appointment.getDate() + " - " + serviceType;
         }

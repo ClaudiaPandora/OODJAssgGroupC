@@ -868,7 +868,7 @@ public class ReportsPanel extends BasePanel {
         statsPanel.setLayout(new BoxLayout(statsPanel, BoxLayout.Y_AXIS));
         statsPanel.setBackground(Color.WHITE);
         
-        // Only count COMPLETED appointments from ALL filtered appointments (including future? No, only past for completed)
+        // Only count completed appointments from all filtered appointments
         String today = DateUtils.getCurrentDate();
         List<Appointment> appointments = getFilteredAppointmentsByTimeRange();
         List<Appointment> pastAppointments = appointments.stream()
@@ -987,7 +987,7 @@ public class ReportsPanel extends BasePanel {
         // Get today's date for comparison
         String today = DateUtils.getCurrentDate();
         
-        // Only count appointments that are in the past (date <= today)
+        // Only count appointments that are in the past 
         List<Appointment> pastAppointments = appointments.stream()
             .filter(a -> a.getDate() != null && a.getDate().compareTo(today) <= 0)
             .collect(Collectors.toList());
@@ -1005,7 +1005,7 @@ public class ReportsPanel extends BasePanel {
         content.add(completionPanel);
         content.add(Box.createVerticalStrut(10));
         
-        // Calculate peak service hours from COMPLETED appointments from PAST appointments only
+        // Calculate peak service hours from completed appointments from past appointments only
         List<Appointment> completedPastAppointments = pastAppointments.stream()
             .filter(a -> a.getStatus() == AppointmentStatus.COMPLETED)
             .collect(Collectors.toList());
@@ -1025,9 +1025,9 @@ public class ReportsPanel extends BasePanel {
             return "No data available";
         }
         
-        // Count appointments per hour (frequency, not weighted)
+        // Count appointments per hour 
         int[] hourCounts = new int[24];
-        // Also track service type for each hour
+        // Track service type for each hour
         Map<Integer, Integer> majorCountPerHour = new HashMap<>();
         Map<Integer, Integer> normalCountPerHour = new HashMap<>();
         
@@ -1070,12 +1070,10 @@ public class ReportsPanel extends BasePanel {
         int normalCount = normalCountPerHour.getOrDefault(peakHourStart, 0);
         
         // Peak duration is based on the dominant service type at that hour
-        // If major appointments are more at that hour, peak lasts 3 hours
-        // If normal appointments are more or equal, peak lasts 1 hour
         int peakDuration = (majorCount > normalCount) ? 3 : 1;
         int peakHourEnd = peakHourStart + peakDuration - 1;
         
-        // Ensure we don't go beyond 23 (11 PM)
+        // Ensure not going beyond 23 (11 PM)
         if (peakHourEnd >= 24) {
             peakHourEnd = 23;
         }
@@ -1131,7 +1129,7 @@ public class ReportsPanel extends BasePanel {
         Map<String, Payment> paymentMap = payments.stream()
             .collect(Collectors.toMap(Payment::getAppointmentId, p -> p, (p1, p2) -> p1));
         
-        // Revenue from COMPLETED paid appointments only (from past appointments)
+        // Revenue from completed paid appointments only (from past appointments)
         String today = DateUtils.getCurrentDate();
         List<Appointment> pastAppointments = appointments.stream()
             .filter(a -> a.getDate() != null && a.getDate().compareTo(today) <= 0)
@@ -1357,14 +1355,14 @@ public class ReportsPanel extends BasePanel {
         chartPanel.setPreferredSize(new Dimension(120, 120));
         content.add(chartPanel);
         
-        // Use PAST appointments only (date <= today) for customer analysis
+        // Use past appointments only for customer analysis
         String today = DateUtils.getCurrentDate();
         List<Appointment> appointments = getFilteredAppointmentsByTimeRange();
         List<Appointment> pastAppointments = appointments.stream()
             .filter(a -> a.getDate() != null && a.getDate().compareTo(today) <= 0)
             .collect(Collectors.toList());
         
-        // Only consider customers who have COMPLETED appointments from past
+        // Only consider customers who have completed appointments from past
         List<Appointment> completedAppointments = getCompletedAppointments(pastAppointments);
         long activeCustomers = completedAppointments.stream()
             .map(Appointment::getCustomerId)
@@ -1448,7 +1446,7 @@ public class ReportsPanel extends BasePanel {
             .collect(Collectors.toList());
         List<Appointment> completedAppointments = getCompletedAppointments(pastAppointments);
         
-        // Only consider customers who have COMPLETED appointments
+        // Only consider customers who have completed appointments
         Map<String, Long> customerVisits = completedAppointments.stream()
             .collect(Collectors.groupingBy(Appointment::getCustomerId, Collectors.counting()));
         
@@ -1497,7 +1495,7 @@ public class ReportsPanel extends BasePanel {
         content.setBackground(Color.WHITE);
         content.setBorder(BorderFactory.createEmptyBorder(10, 15, 15, 15));
         
-        // Use PAST appointments only
+        // Use past appointments only
         String today = DateUtils.getCurrentDate();
         List<Appointment> appointments = getFilteredAppointmentsByTimeRange();
         List<Appointment> pastAppointments = appointments.stream()
@@ -1515,7 +1513,7 @@ public class ReportsPanel extends BasePanel {
             return card;
         }
         
-        // Count visits per customer based on COMPLETED appointments only from past
+        // Count visits per customer based on completed appointments only from past
         Map<String, Long> customerVisitCount = completedAppointments.stream()
             .collect(Collectors.groupingBy(Appointment::getCustomerId, Collectors.counting()));
         
@@ -1613,7 +1611,7 @@ public class ReportsPanel extends BasePanel {
         
         List<Technician> techs = userDAO.readTechnicians();
         
-        // Use PAST appointments only
+        // Use past appointments only
         String today = DateUtils.getCurrentDate();
         List<Appointment> appointments = getFilteredAppointmentsByTimeRange();
         List<Appointment> pastAppointments = appointments.stream()
@@ -1621,7 +1619,7 @@ public class ReportsPanel extends BasePanel {
             .collect(Collectors.toList());
         List<Appointment> completedAppointments = getCompletedAppointments(pastAppointments);
         
-        // Count COMPLETED jobs per technician
+        // Count completed jobs per technician
         Map<String, Long> technicianCompletedJobs = new HashMap<>();
         for (Technician t : techs) {
             long completed = completedAppointments.stream()
@@ -1705,7 +1703,7 @@ public class ReportsPanel extends BasePanel {
             return card;
         }
         
-        // Count ALL appointments per counter staff (including ASSIGNED and COMPLETED)
+        // Count all appointments per counter staff (including ASSIGNED and COMPLETED)
         Map<String, Long> staffAppointmentCount = new HashMap<>();
         for (CounterStaff cs : userDAO.readCounterStaff()) {
             long handledAppointments = pastAppointments.stream()
@@ -1809,12 +1807,12 @@ public class ReportsPanel extends BasePanel {
         
         List<Appointment> filteredAppointments = getFilteredAppointmentsByTimeRange();
         
-        // Get appointment IDs for the filtered time range (ALL appointments)
+        // Get appointment IDs for the filtered time range
         List<String> filteredAppointmentIds = filteredAppointments.stream()
             .map(Appointment::getId)
             .collect(Collectors.toList());
         
-        // Get ALL comments for appointments in the filtered time range (including counter staff comments)
+        // Get all comments for appointments in the filtered time range (including counter staff comments)
         List<Comment> allComments = commentDAO.readAll();
         List<Comment> filteredComments = allComments.stream()
             .filter(c -> filteredAppointmentIds.contains(c.getAppointmentId()) && c.getRating() > 0)
@@ -1908,7 +1906,7 @@ public class ReportsPanel extends BasePanel {
             .map(Appointment::getId)
             .collect(Collectors.toList());
         
-        // Get ALL comments for appointments in the filtered time range
+        // Get all comments for appointments in the filtered time range
         List<Comment> allComments = commentDAO.readAll();
         List<Comment> filteredComments = allComments.stream()
             .filter(c -> filteredAppointmentIds.contains(c.getAppointmentId()) && c.getRating() > 0)
@@ -2070,17 +2068,17 @@ public class ReportsPanel extends BasePanel {
         // Get today's date for comparison
         String today = DateUtils.getCurrentDate();
         
-        // ONLY consider past appointments (date <= today) for ALL calculations
+        // Only consider past appointments for all calculations
         List<Appointment> pastAppointments = allFilteredAppointments.stream()
             .filter(a -> a.getDate() != null && a.getDate().compareTo(today) <= 0)
             .collect(Collectors.toList());
         
-        // COMPLETED appointments from past appointments only
+        // Completed appointments from past appointments only
         List<Appointment> completedAppointments = pastAppointments.stream()
             .filter(a -> a.getStatus() == AppointmentStatus.COMPLETED)
             .collect(Collectors.toList());
         
-        // Get ALL comments for the filtered time range (use past appointment IDs for ratings)
+        // Get all comments for the filtered time range (use past appointment IDs for ratings)
         Set<String> pastAppointmentIds = pastAppointments.stream()
             .map(Appointment::getId)
             .collect(Collectors.toSet());
@@ -2091,7 +2089,7 @@ public class ReportsPanel extends BasePanel {
             .filter(c -> pastAppointmentIds.contains(c.getAppointmentId()))
             .collect(Collectors.toList());
         
-        // Get rated comments from filtered results only (these have ratings)
+        // Get rated comments from filtered results only 
         List<Comment> filteredRatedComments = filteredComments.stream()
             .filter(c -> c.getRating() >= 1 && c.getRating() <= 5)
             .collect(Collectors.toList());
@@ -2113,7 +2111,7 @@ public class ReportsPanel extends BasePanel {
             .mapToDouble(a -> paymentMap.get(a.getId()).getAmount())
             .sum();
         
-        // Find top technician(s) - based on COMPLETED jobs from past appointments only
+        // Find top technician(s) based on completed jobs from past appointments only
         long maxTechnicianJobs = 0;
         List<String> topTechnicians = new ArrayList<>();
         Map<String, Long> technicianJobCount = new HashMap<>();
@@ -2134,7 +2132,7 @@ public class ReportsPanel extends BasePanel {
             }
         }
         
-        // Find top customer(s) - based on COMPLETED appointments from past appointments only
+        // Find top customer(s) based on completed appointments from past appointments only
         Map<String, Long> customerVisits = completedAppointments.stream()
             .collect(Collectors.groupingBy(Appointment::getCustomerId, Collectors.counting()));
         
@@ -2157,7 +2155,7 @@ public class ReportsPanel extends BasePanel {
             }
         }
         
-        // Find top counter staff(s) - based on past appointments only (ALL appointments, not just completed)
+        // Find top counter staff(s) based on past appointments only
         long maxStaffAppointments = 0;
         List<String> topCounterStaff = new ArrayList<>();
         Map<String, Long> staffAppointmentCount = new HashMap<>();
@@ -2178,7 +2176,7 @@ public class ReportsPanel extends BasePanel {
             }
         }
         
-        // Customer analysis based ONLY on completed appointments (from past)
+        // Customer analysis based only on completed appointments (from past)
         long activeCustomers = customerVisits.size();
         long returning = customerVisits.entrySet().stream()
             .filter(entry -> entry.getValue() > 1)
